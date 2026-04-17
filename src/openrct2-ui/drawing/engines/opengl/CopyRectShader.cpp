@@ -30,7 +30,42 @@ constexpr VDStruct kVertexData[4] = {
 };
 
 CopyRectShader::CopyRectShader()
-    : OpenGLShaderProgram("copyrect")
+    : OpenGLShaderProgram([]() {
+        // Set to true to force GLSL 120 shader for testing on modern hardware
+        constexpr bool forceGLSL120 = true;
+        
+        if (forceGLSL120)
+        {
+            LOG_WARNING("FORCE: Using GLSL 120 shader: copyrect_120");
+            return "copyrect_120";
+        }
+        
+        GLint majorVersion = 0;
+        GLint minorVersion = 0;
+        glGetIntegerv(GL_MAJOR_VERSION, &majorVersion);
+        glGetIntegerv(GL_MINOR_VERSION, &minorVersion);
+        
+        const char* shaderName = "copyrect";
+        
+        // If glGetIntegerv fails (returns 0), assume OpenGL 2.1
+        if (majorVersion == 0 && minorVersion == 0)
+        {
+            shaderName = "copyrect_120";
+            LOG_WARNING("OpenGL version query failed, assuming OpenGL 2.1, using shader: %s", shaderName);
+        }
+        // Use GLSL 120 for OpenGL 2.1
+        else if (majorVersion == 2 && minorVersion == 1)
+        {
+            shaderName = "copyrect_120";
+            LOG_WARNING("OpenGL 2.1 detected, using GLSL 120 shader: %s", shaderName);
+        }
+        else
+        {
+            LOG_WARNING("OpenGL %d.%d detected, using GLSL 330 shader: %s", majorVersion, minorVersion, shaderName);
+        }
+        
+        return shaderName;
+    }())
 {
     GetLocations();
 

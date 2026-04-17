@@ -167,14 +167,15 @@ void TextureCache::CreateTextures()
         }
 
         // Determine maximum number of atlases (minimum of size and array limit)
-        glCall(glGetIntegerv, GL_MAX_ARRAY_TEXTURE_LAYERS, &_atlasesTextureIndicesLimit);
+        glCall(glGetIntegerv, GL_MAX_3D_TEXTURE_SIZE, &_atlasesTextureIndicesLimit);
         if (_atlasesTextureDimensions < _atlasesTextureIndicesLimit)
             _atlasesTextureIndicesLimit = _atlasesTextureDimensions;
 
         glCall(glGenTextures, 1, &_atlasesTexture);
-        glCall(glBindTexture, GL_TEXTURE_2D_ARRAY, _atlasesTexture);
-        glCall(glTexParameteri, GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glCall(glTexParameteri, GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glCall(glBindTexture, GL_TEXTURE_3D, _atlasesTexture);
+        glCall(glTexParameteri, GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glCall(glTexParameteri, GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glCall(glTexParameteri, GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
         glCall(glPixelStorei, GL_UNPACK_ALIGNMENT, 1);
 
         glCall(glGenTextures, 1, &_paletteTexture);
@@ -193,7 +194,7 @@ void TextureCache::CreateTextures()
             glCall(glTexParameteri, GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
             glCall(glPixelStorei, GL_UNPACK_ALIGNMENT, 1);
             glCall(
-                glTexImage2D, GL_TEXTURE_2D, 0, GL_R8UI, kGamePaletteSize, kGamePaletteSize, 0, GL_RED_INTEGER,
+                glTexImage2D, GL_TEXTURE_2D, 0, GL_R8, kGamePaletteSize, kGamePaletteSize, 0, GL_RED,
                 GL_UNSIGNED_BYTE, blendArray);
         }
 
@@ -233,7 +234,7 @@ void TextureCache::GeneratePaletteTexture()
     }
 
     glCall(glBindTexture, GL_TEXTURE_2D, _paletteTexture);
-    glCall(glTexImage2D, GL_TEXTURE_2D, 0, GL_R8UI, width, height, 0, GL_RED_INTEGER, GL_UNSIGNED_BYTE, rt.bits);
+    glCall(glTexImage2D, GL_TEXTURE_2D, 0, GL_R8, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, rt.bits);
     DeleteRT(rt);
 }
 
@@ -251,23 +252,23 @@ void TextureCache::EnlargeAtlasesTexture(GLuint newEntries)
         oldPixels.resize(_atlasesTextureDimensions * _atlasesTextureDimensions * _atlasesTextureCapacity);
         if (!oldPixels.empty())
         {
-            glCall(glGetTexImage, GL_TEXTURE_2D_ARRAY, 0, GL_RED_INTEGER, GL_UNSIGNED_BYTE, oldPixels.data());
+            glCall(glGetTexImage, GL_TEXTURE_3D, 0, GL_RED, GL_UNSIGNED_BYTE, oldPixels.data());
         }
 
         // Initial capacity will be 12 which covers most cases of a fully visible park.
         _atlasesTextureCapacity = (_atlasesTextureCapacity + 6) << 1uL;
 
-        glCall(glBindTexture, GL_TEXTURE_2D_ARRAY, _atlasesTexture);
+        glCall(glBindTexture, GL_TEXTURE_3D, _atlasesTexture);
         glCall(
-            glTexImage3D, GL_TEXTURE_2D_ARRAY, 0, GL_R8UI, _atlasesTextureDimensions, _atlasesTextureDimensions,
-            _atlasesTextureCapacity, 0, GL_RED_INTEGER, GL_UNSIGNED_BYTE, nullptr);
+            glTexImage3D, GL_TEXTURE_3D, 0, GL_R8, _atlasesTextureDimensions, _atlasesTextureDimensions,
+            _atlasesTextureCapacity, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
 
         // Restore old data
         if (!oldPixels.empty())
         {
             glCall(
-                glTexSubImage3D, GL_TEXTURE_2D_ARRAY, 0, 0, 0, 0, _atlasesTextureDimensions, _atlasesTextureDimensions,
-                _atlasesTextureIndices, GL_RED_INTEGER, GL_UNSIGNED_BYTE, oldPixels.data());
+                glTexSubImage3D, GL_TEXTURE_3D, 0, 0, 0, 0, _atlasesTextureDimensions, _atlasesTextureDimensions,
+                _atlasesTextureIndices, GL_RED, GL_UNSIGNED_BYTE, oldPixels.data());
         }
     }
 
@@ -281,10 +282,10 @@ AtlasTextureInfo TextureCache::LoadImageTexture(const ImageId imageId)
     auto cacheInfo = AllocateImage(rt.width, rt.height);
     cacheInfo.image = imageId.GetIndex();
 
-    glCall(glBindTexture, GL_TEXTURE_2D_ARRAY, _atlasesTexture);
+    glCall(glBindTexture, GL_TEXTURE_3D, _atlasesTexture);
     glCall(
-        glTexSubImage3D, GL_TEXTURE_2D_ARRAY, 0, cacheInfo.bounds.x, cacheInfo.bounds.y, cacheInfo.index, rt.width, rt.height,
-        1, GL_RED_INTEGER, GL_UNSIGNED_BYTE, rt.bits);
+        glTexSubImage3D, GL_TEXTURE_3D, 0, cacheInfo.bounds.x, cacheInfo.bounds.y, cacheInfo.index, rt.width, rt.height,
+        1, GL_RED, GL_UNSIGNED_BYTE, rt.bits);
 
     DeleteRT(rt);
 
@@ -298,10 +299,10 @@ AtlasTextureInfo TextureCache::LoadGlyphTexture(const ImageId imageId, const Pal
     auto cacheInfo = AllocateImage(rt.width, rt.height);
     cacheInfo.image = imageId.GetIndex();
 
-    glCall(glBindTexture, GL_TEXTURE_2D_ARRAY, _atlasesTexture);
+    glCall(glBindTexture, GL_TEXTURE_3D, _atlasesTexture);
     glCall(
-        glTexSubImage3D, GL_TEXTURE_2D_ARRAY, 0, cacheInfo.bounds.x, cacheInfo.bounds.y, cacheInfo.index, rt.width, rt.height,
-        1, GL_RED_INTEGER, GL_UNSIGNED_BYTE, rt.bits);
+        glTexSubImage3D, GL_TEXTURE_3D, 0, cacheInfo.bounds.x, cacheInfo.bounds.y, cacheInfo.index, rt.width, rt.height,
+        1, GL_RED, GL_UNSIGNED_BYTE, rt.bits);
 
     DeleteRT(rt);
 
@@ -312,10 +313,10 @@ AtlasTextureInfo TextureCache::LoadBitmapTexture(ImageIndex image, const void* p
 {
     auto cacheInfo = AllocateImage(int32_t(width), int32_t(height));
     cacheInfo.image = image;
-    glCall(glBindTexture, GL_TEXTURE_2D_ARRAY, _atlasesTexture);
+    glCall(glBindTexture, GL_TEXTURE_3D, _atlasesTexture);
     glCall(
-        glTexSubImage3D, GL_TEXTURE_2D_ARRAY, 0, cacheInfo.bounds.x, cacheInfo.bounds.y, cacheInfo.index, GLsizei(width),
-        GLsizei(height), 1, GL_RED_INTEGER, GL_UNSIGNED_BYTE, reinterpret_cast<const GLvoid*>(pixels));
+        glTexSubImage3D, GL_TEXTURE_3D, 0, cacheInfo.bounds.x, cacheInfo.bounds.y, cacheInfo.index, GLsizei(width),
+        GLsizei(height), 1, GL_RED, GL_UNSIGNED_BYTE, reinterpret_cast<const GLvoid*>(pixels));
     return cacheInfo;
 }
 

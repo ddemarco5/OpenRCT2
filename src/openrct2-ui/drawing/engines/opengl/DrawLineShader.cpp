@@ -29,9 +29,46 @@ constexpr VDStruct kVertexData[2] = {
 };
 
 DrawLineShader::DrawLineShader()
-    : OpenGLShaderProgram("drawline")
+    : OpenGLShaderProgram([]() {
+        // Set to true to force GLSL 120 shader for testing on modern hardware
+        constexpr bool forceGLSL120 = true;
+        
+        if (forceGLSL120)
+        {
+            LOG_WARNING("FORCE: Using GLSL 120 shader: drawline_120");
+            return "drawline_120";
+        }
+        
+        GLint majorVersion = 0;
+        GLint minorVersion = 0;
+        glGetIntegerv(GL_MAJOR_VERSION, &majorVersion);
+        glGetIntegerv(GL_MINOR_VERSION, &minorVersion);
+        
+        const char* shaderName = "drawline";
+        
+        // If glGetIntegerv fails (returns 0), assume OpenGL 2.1
+        if (majorVersion == 0 && minorVersion == 0)
+        {
+            shaderName = "drawline_120";
+            LOG_WARNING("OpenGL version query failed, assuming OpenGL 2.1, using shader: %s", shaderName);
+        }
+        // Use GLSL 120 for OpenGL 2.1
+        else if (majorVersion == 2 && minorVersion == 1)
+        {
+            shaderName = "drawline_120";
+            LOG_WARNING("OpenGL 2.1 detected, using GLSL 120 shader: %s", shaderName);
+        }
+        else
+        {
+            LOG_WARNING("OpenGL %d.%d detected, using GLSL 330 shader: %s", majorVersion, minorVersion, shaderName);
+        }
+        
+        return shaderName;
+    }())
 {
     GetLocations();
+
+    constexpr bool useGL120 = true; // Must match the forceGLSL120 flag in the lambda above
 
     glCall(glGenBuffers, 1, &_vbo);
     glCall(glGenBuffers, 1, &_vboInstances);
@@ -54,15 +91,32 @@ DrawLineShader::DrawLineShader()
         reinterpret_cast<void*>(offsetof(VDStruct, mat[3])));
 
     glCall(glBindBuffer, GL_ARRAY_BUFFER, _vboInstances);
-    glCall(
-        glVertexAttribIPointer, vBounds, 4, GL_INT, glSizeOf<DrawLineCommand>(),
-        reinterpret_cast<void*>(offsetof(DrawLineCommand, bounds)));
-    glCall(
-        glVertexAttribIPointer, vColour, 1, GL_UNSIGNED_INT, glSizeOf<DrawLineCommand>(),
-        reinterpret_cast<void*>(offsetof(DrawLineCommand, colour)));
-    glCall(
-        glVertexAttribIPointer, vDepth, 1, GL_INT, glSizeOf<DrawLineCommand>(),
-        reinterpret_cast<void*>(offsetof(DrawLineCommand, depth)));
+    if (useGL120)
+    {
+        // drawline_120.vert declares these as float/vec4; glVertexAttribPointer converts int data to float.
+        glCall(
+            glVertexAttribPointer, vBounds, 4, GL_INT, GL_FALSE, glSizeOf<DrawLineCommand>(),
+            reinterpret_cast<void*>(offsetof(DrawLineCommand, bounds)));
+        glCall(
+            glVertexAttribPointer, vColour, 1, GL_UNSIGNED_INT, GL_FALSE, glSizeOf<DrawLineCommand>(),
+            reinterpret_cast<void*>(offsetof(DrawLineCommand, colour)));
+        glCall(
+            glVertexAttribPointer, vDepth, 1, GL_INT, GL_FALSE, glSizeOf<DrawLineCommand>(),
+            reinterpret_cast<void*>(offsetof(DrawLineCommand, depth)));
+    }
+    else
+    {
+        // drawline.vert (GLSL 330) uses integer attribute types; requires glVertexAttribIPointer.
+        glCall(
+            glVertexAttribIPointer, vBounds, 4, GL_INT, glSizeOf<DrawLineCommand>(),
+            reinterpret_cast<void*>(offsetof(DrawLineCommand, bounds)));
+        glCall(
+            glVertexAttribIPointer, vColour, 1, GL_UNSIGNED_INT, glSizeOf<DrawLineCommand>(),
+            reinterpret_cast<void*>(offsetof(DrawLineCommand, colour)));
+        glCall(
+            glVertexAttribIPointer, vDepth, 1, GL_INT, glSizeOf<DrawLineCommand>(),
+            reinterpret_cast<void*>(offsetof(DrawLineCommand, depth)));
+    }
 
     glCall(glEnableVertexAttribArray, vVertMat + 0);
     glCall(glEnableVertexAttribArray, vVertMat + 1);
@@ -99,7 +153,7 @@ void DrawLineShader::GetLocations()
 
 void DrawLineShader::SetScreenSize(int32_t width, int32_t height)
 {
-    glCall(glUniform2i, uScreenSize, width, height);
+    glCall(glUniform2f, uScreenSize, static_cast<GLfloat>(width), static_cast<GLfloat>(height));
 }
 
 void DrawLineShader::DrawInstances(const LineCommandBatch& instances)

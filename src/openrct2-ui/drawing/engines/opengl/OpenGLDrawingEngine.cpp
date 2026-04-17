@@ -50,7 +50,7 @@ struct OpenGLVersion
     GLint Minor;
 };
 
-constexpr OpenGLVersion kOpenGLMinimumRequiredVersion = { 3, 3 };
+constexpr OpenGLVersion kOpenGLMinimumRequiredVersion = { 2, 1 };
 
 constexpr uint8_t kCSInside = 0b0000;
 constexpr uint8_t kCSLeft = 0b0001;
@@ -242,23 +242,51 @@ public:
 
     void Initialise() override
     {
-        OpenGLVersion requiredVersion = kOpenGLMinimumRequiredVersion;
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, requiredVersion.Major);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, requiredVersion.Minor);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-
+        // Try OpenGL 3.3 first for full feature support, fall back to 2.1 for older hardware.
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
         _context = SDL_GL_CreateContext(_window);
+
         if (_context == nullptr)
         {
-            char szRequiredVersion[32];
-            snprintf(szRequiredVersion, 32, "OpenGL %d.%d", requiredVersion.Major, requiredVersion.Minor);
-            throw std::runtime_error(std::string(szRequiredVersion) + std::string(" not available."));
+            LOG_WARNING("OpenGL 3.3 context unavailable, falling back to OpenGL 2.1");
+            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+            _context = SDL_GL_CreateContext(_window);
+        }
+
+        if (_context == nullptr)
+        {
+            throw std::runtime_error("OpenGL 2.1 not available.");
         }
         SDL_GL_MakeCurrent(_window, _context);
 
         if (!OpenGLAPI::Initialise())
         {
             throw std::runtime_error("Unable to initialise OpenGL.");
+        }
+
+        {
+            OpenGLVersion glVersion = GetOpenGLVersion();
+            LOG_VERBOSE("OpenGL context version: %d.%d", glVersion.Major, glVersion.Minor);
+            if (glVersion.Major == 2)
+            {
+                // On OpenGL 2.1 check for required extensions via SDL proc lookup.
+                // SDL_GL_GetProcAddress returns non-null when an extension entry point exists.
+                const bool hasDrawInstanced = SDL_GL_GetProcAddress("glDrawArraysInstancedARB") != nullptr
+                    || SDL_GL_GetProcAddress("glDrawArraysInstanced") != nullptr;
+                const bool hasInstancedArrays = SDL_GL_GetProcAddress("glVertexAttribDivisorARB") != nullptr
+                    || SDL_GL_GetProcAddress("glVertexAttribDivisor") != nullptr;
+                const bool hasTexture3D = SDL_GL_GetProcAddress("glTexImage3D") != nullptr
+                    || SDL_GL_GetProcAddress("glTexImage3DEXT") != nullptr;
+                if (!hasDrawInstanced)
+                    LOG_WARNING("GL_ARB_draw_instanced not found - instanced drawing may fail");
+                if (!hasInstancedArrays)
+                    LOG_WARNING("GL_ARB_instanced_arrays not found - vertex divisors may fail");
+                if (!hasTexture3D)
+                    LOG_WARNING("GL_EXT_texture3D not found - atlas texture may fail");
+            }
         }
 
         _drawingContext->Initialise();
@@ -1292,10 +1320,11 @@ void OpenGLDrawingContext::FlushRectangles()
     if (_commandBuffers.rects.empty())
         return;
 
-    OpenGLAPI::SetTexture(0, GL_TEXTURE_2D_ARRAY, _textureCache->GetAtlasesTexture());
+    OpenGLAPI::SetTexture(0, GL_TEXTURE_3D, _textureCache->GetAtlasesTexture());
     OpenGLAPI::SetTexture(1, GL_TEXTURE_2D, _textureCache->GetPaletteTexture());
 
     _drawRectShader->Use();
+    _drawRectShader->SetAtlasLayerCount(_textureCache->GetAtlasLayerCount());
     _drawRectShader->SetInstances(_commandBuffers.rects);
     _drawRectShader->DrawInstances();
 
@@ -1326,10 +1355,11 @@ void OpenGLDrawingContext::HandleTransparency()
             _drawRectShader->EnablePeeling(_swapFramebuffer->GetBackDepthTexture());
         }
 
-        OpenGLAPI::SetTexture(0, GL_TEXTURE_2D_ARRAY, _textureCache->GetAtlasesTexture());
+        OpenGLAPI::SetTexture(0, GL_TEXTURE_3D, _textureCache->GetAtlasesTexture());
         OpenGLAPI::SetTexture(1, GL_TEXTURE_2D, _textureCache->GetPaletteTexture());
 
         _drawRectShader->Use();
+        _drawRectShader->SetAtlasLayerCount(_textureCache->GetAtlasLayerCount());
         _drawRectShader->DrawInstances();
         _swapFramebuffer->ApplyTransparency(
             *_applyTransparencyShader, _textureCache->GetPaletteTexture(), _textureCache->GetBlendPaletteTexture());

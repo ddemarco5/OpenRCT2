@@ -95,7 +95,14 @@ OpenGLShaderProgram::OpenGLShaderProgram(const char* name)
     _id = glCall(glCreateProgram);
     glCall(glAttachShader, _id, _vertexShader->GetShaderId());
     glCall(glAttachShader, _id, _fragmentShader->GetShaderId());
-    glCall(glBindFragDataLocation, _id, 0, "oColour");
+    
+    // GLSL 120 shaders use gl_FragColor (built-in), GLSL 330 shaders use out vec4 oColour
+    // Only bind fragment data location for GLSL 330 shaders
+    const size_t nameLen = strlen(name);
+    if (!(nameLen > 4 && strcmp(name + nameLen - 4, "_120") == 0))
+    {
+        glCall(glBindFragDataLocation, _id, 0, "oColour");
+    }
 
     if (!Link())
     {

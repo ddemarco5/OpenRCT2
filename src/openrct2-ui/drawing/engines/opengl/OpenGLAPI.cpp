@@ -30,7 +30,13 @@ static const char* TryLoadAllProcAddresses()
                     return #PROC;                                                                                              \
                 }                                                                                                              \
             }
+        #undef OPENGL_PROC_OPT
+        #define OPENGL_PROC_OPT(TYPE, PROC)                                                                                    \
+            {                                                                                                                  \
+                PROC = reinterpret_cast<TYPE>(SDL_GL_GetProcAddress(#PROC));                                                   \
+            }
         #include "OpenGLAPIProc.h"
+        #undef OPENGL_PROC_OPT
         #undef OPENGL_PROC
 
     return nullptr;

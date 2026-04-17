@@ -37,9 +37,10 @@ OpenGLFramebuffer::OpenGLFramebuffer(int32_t width, int32_t height, bool depth, 
     glCall(glBindTexture, GL_TEXTURE_2D, _texture);
     if (integer)
     {
-        int internalFormat = word ? GL_R16UI : GL_R8UI;
+        // Use regular texture formats for OpenGL 2.1 compatibility (no integer texture support)
+        int internalFormat = word ? GL_R16 : GL_R8;
         int type = word ? GL_UNSIGNED_SHORT : GL_UNSIGNED_BYTE;
-        glCall(glTexImage2D, GL_TEXTURE_2D, 0, internalFormat, width, height, 0, GL_RED_INTEGER, type, nullptr);
+        glCall(glTexImage2D, GL_TEXTURE_2D, 0, internalFormat, width, height, 0, GL_RED, type, nullptr);
     }
     else
     {
@@ -187,7 +188,7 @@ void OpenGLFramebuffer::GetPixels(Drawing::RenderTarget& rt) const
     auto pixels = std::make_unique<Drawing::PaletteIndex[]>(_width * _height);
     glCall(glBindTexture, GL_TEXTURE_2D, _texture);
     glCall(glPixelStorei, GL_PACK_ALIGNMENT, 1);
-    glCall(glGetTexImage, GL_TEXTURE_2D, 0, GL_RED_INTEGER, GL_UNSIGNED_BYTE, pixels.get());
+    glCall(glGetTexImage, GL_TEXTURE_2D, 0, GL_RED, GL_UNSIGNED_BYTE, pixels.get());
 
     // Flip pixels vertically on copy
     Drawing::PaletteIndex* src = pixels.get() + ((_height - 1) * _width);
@@ -217,7 +218,7 @@ void OpenGLFramebuffer::SetPixels(const Drawing::RenderTarget& rt)
 
     glCall(glBindTexture, GL_TEXTURE_2D, _texture);
     glCall(glPixelStorei, GL_UNPACK_ALIGNMENT, 1);
-    glCall(glTexSubImage2D, GL_TEXTURE_2D, 0, 0, 0, _width, _height, GL_RED_INTEGER, GL_UNSIGNED_BYTE, pixels.get());
+    glCall(glTexSubImage2D, GL_TEXTURE_2D, 0, 0, 0, _width, _height, GL_RED, GL_UNSIGNED_BYTE, pixels.get());
 }
 
 #endif /* DISABLE_OPENGL */

@@ -26,6 +26,8 @@ namespace OpenRCT2::Ui
         GLint uPeelingTex{ -1 };
         GLint uPeeling{ -1 };
 
+        GLint uAtlasLayerCount{ -1 };
+
         GLint vVertMat{ -1 };
         GLint vVertVec{ -1 };
 
@@ -53,6 +55,7 @@ namespace OpenRCT2::Ui
         ~DrawRectShader() override;
 
         void SetScreenSize(int32_t width, int32_t height);
+        void SetAtlasLayerCount(GLuint count);
         void EnablePeeling(GLuint peelingTex);
         void DisablePeeling();
 

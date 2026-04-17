@@ -1,12 +1,12 @@
 #version 330 core
 
 // clang-format off
-uniform usampler2D      uOpaqueTex;
+uniform sampler2D       uOpaqueTex;
 uniform sampler2D       uOpaqueDepth;
-uniform usampler2D      uTransparentTex;
+uniform sampler2D      uTransparentTex;
 uniform sampler2D       uTransparentDepth;
-uniform usampler2D      uPaletteTex;
-uniform usampler2D      uBlendPaletteTex;
+uniform sampler2D      uPaletteTex;
+uniform sampler2D      uBlendPaletteTex;
 // clang-format on
 
 in vec2 fTextureCoordinate;
@@ -15,9 +15,9 @@ out uint oColour;
 
 void main()
 {
-    uint opaque = texture(uOpaqueTex, fTextureCoordinate).r;
+    uint opaque = uint(texture(uOpaqueTex, fTextureCoordinate).r * 255.0);
     float opaqueDepth = texture(uOpaqueDepth, fTextureCoordinate).r;
-    uint transparent = texture(uTransparentTex, fTextureCoordinate).r;
+    uint transparent = uint(texture(uTransparentTex, fTextureCoordinate).r * 255.0);
     float transparentDepth = texture(uTransparentDepth, fTextureCoordinate).r;
 
     if (opaqueDepth <= transparentDepth)
@@ -34,11 +34,11 @@ void main()
         }
         else
         {
-            oColour = texture(uBlendPaletteTex, vec2(opaque, blendColour) / 256.f).r;
+            oColour = uint(texture(uBlendPaletteTex, vec2(opaque, blendColour) / 256.f).r * 255.0);
         }
     }
     else
     {
-        oColour = texture(uPaletteTex, vec2(opaque, transparent) / 256.f).r;
+        oColour = uint(texture(uPaletteTex, vec2(opaque, transparent) / 256.f).r * 255.0);
     }
 }

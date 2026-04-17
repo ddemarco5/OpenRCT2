@@ -213,6 +213,7 @@ namespace OpenRCT2::Ui
         GLuint GetAtlasesTexture();
         GLuint GetPaletteTexture();
         GLuint GetBlendPaletteTexture();
+        GLuint GetAtlasLayerCount() const { return _atlasesTextureCapacity; }
         static GLint PaletteToY(Drawing::FilterPaletteID palette);
 
     private:
