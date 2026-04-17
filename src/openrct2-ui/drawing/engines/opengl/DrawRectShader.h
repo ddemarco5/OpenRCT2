@@ -15,6 +15,7 @@
 
 #include <SDL_pixels.h>
 #include <array>
+#include <set>
 
 namespace OpenRCT2::Ui
 {
@@ -72,14 +73,15 @@ namespace OpenRCT2::Ui
         {
             std::unique_ptr<OpenGLShaderProgram> program;
             GLint uScreenSize{ -1 };
-            GLint uTexture{ -1 };
+            GLint uTexColour{ -1 };
+            GLint uTexMask{ -1 };
             GLint uPaletteTex{ -1 };
             GLint uPeelingTex{ -1 };
-            GLint uAtlasLayerCount{ -1 };
         };
 
         // Lazily populated; index is the 6-bit variant key.
         std::array<std::unique_ptr<ProgramVariant>, kVariantCount> _variants;
+        std::set<int> _failedKeys; // keys that failed to compile (avoid retrying)
         int _activeKey{ 0 };
         bool _peelActive{ false };
 
@@ -100,7 +102,6 @@ namespace OpenRCT2::Ui
 
         void Use();
         void SetScreenSize(int32_t width, int32_t height);
-        void SetAtlasLayerCount(GLuint count);
         void EnablePeeling(GLuint peelingTex);
         void DisablePeeling();
 

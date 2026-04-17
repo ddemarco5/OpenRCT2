@@ -35,17 +35,12 @@ OpenGLFramebuffer::OpenGLFramebuffer(int32_t width, int32_t height, bool depth, 
 
     glCall(glGenTextures, 1, &_texture);
     glCall(glBindTexture, GL_TEXTURE_2D, _texture);
-    if (integer)
-    {
-        // Use regular texture formats for OpenGL 2.1 compatibility (no integer texture support)
-        int internalFormat = word ? GL_R16 : GL_R8;
-        int type = word ? GL_UNSIGNED_SHORT : GL_UNSIGNED_BYTE;
-        glCall(glTexImage2D, GL_TEXTURE_2D, 0, internalFormat, width, height, 0, GL_RED, type, nullptr);
-    }
-    else
-    {
-        glCall(glTexImage2D, GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-    }
+    // GL_R8/GL_R16 require GL_ARB_texture_rg which i945 lacks.
+    // GL_LUMINANCE is not color-renderable for FBO attachment.
+    // Use GL_RGBA8 for all cases to ensure FBO completeness on GL 2.1.
+    (void)integer;
+    (void)word;
+    glCall(glTexImage2D, GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     glCall(glTexParameteri, GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glCall(glTexParameteri, GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glCall(glTexParameteri, GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -188,7 +183,7 @@ void OpenGLFramebuffer::GetPixels(Drawing::RenderTarget& rt) const
     auto pixels = std::make_unique<Drawing::PaletteIndex[]>(_width * _height);
     glCall(glBindTexture, GL_TEXTURE_2D, _texture);
     glCall(glPixelStorei, GL_PACK_ALIGNMENT, 1);
-    glCall(glGetTexImage, GL_TEXTURE_2D, 0, GL_RED, GL_UNSIGNED_BYTE, pixels.get());
+    glCall(glGetTexImage, GL_TEXTURE_2D, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, pixels.get());
 
     // Flip pixels vertically on copy
     Drawing::PaletteIndex* src = pixels.get() + ((_height - 1) * _width);
@@ -218,7 +213,7 @@ void OpenGLFramebuffer::SetPixels(const Drawing::RenderTarget& rt)
 
     glCall(glBindTexture, GL_TEXTURE_2D, _texture);
     glCall(glPixelStorei, GL_UNPACK_ALIGNMENT, 1);
-    glCall(glTexSubImage2D, GL_TEXTURE_2D, 0, 0, 0, _width, _height, GL_RED, GL_UNSIGNED_BYTE, pixels.get());
+    glCall(glTexSubImage2D, GL_TEXTURE_2D, 0, 0, 0, _width, _height, GL_LUMINANCE, GL_UNSIGNED_BYTE, pixels.get());
 }
 
 #endif /* DISABLE_OPENGL */

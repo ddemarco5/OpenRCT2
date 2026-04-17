@@ -18,13 +18,14 @@ namespace OpenRCT2::Ui
     {
     private:
         GLint uTexture{ -1 };
-        GLint uPalette{ -1 };
+        GLint uPaletteTex{ -1 };
 
         GLint vPosition{ -1 };
         GLint vTextureCoordinate{ -1 };
 
         GLuint _vbo{};
         GLuint _vao{};
+        GLuint _paletteTex{};
 
     public:
         ApplyPaletteShader();

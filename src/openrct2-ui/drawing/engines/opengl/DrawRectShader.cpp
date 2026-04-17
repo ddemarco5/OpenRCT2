@@ -169,6 +169,10 @@ DrawRectShader::ProgramVariant& DrawRectShader::EnsureVariant(int key)
     if (_variants[key] != nullptr)
         return *_variants[key];
 
+    // If this key previously failed to compile, return the fallback immediately.
+    if (_failedKeys.count(key) && _variants[0] != nullptr)
+        return *_variants[0];
+
     // Compose the set of #defines for this key.
     std::string defines;
     defines.reserve(128);
@@ -185,23 +189,41 @@ DrawRectShader::ProgramVariant& DrawRectShader::EnsureVariant(int key)
     if (key & kVarNoTexture)
         defines += "#define NO_TEXTURE\n";
 
+    LOG_WARNING("Compiling drawrect_120 variant key=%d defines: %s", key, defines.c_str());
+
     auto variant = std::make_unique<ProgramVariant>();
-    variant->program = std::make_unique<OpenGLShaderProgram>(kShaderName, defines, kAttribBindings);
+    try
+    {
+        variant->program = std::make_unique<OpenGLShaderProgram>(kShaderName, defines, kAttribBindings);
+    }
+    catch (const std::exception& e)
+    {
+        LOG_ERROR("Failed to compile drawrect_120 variant key=%d: %s", key, e.what());
+        // Cache the failure so we don't retry every frame.
+        _failedKeys.insert(key);
+        // Fall back to the empty variant (key 0) which should always compile.
+        if (key != 0 && _variants[0] != nullptr)
+            return *_variants[0];
+        throw;
+    }
 
     // Use raw glGetUniformLocation to avoid the error-log noise that
     // OpenGLShaderProgram::GetUniformLocation emits for missing uniforms;
     // some uniforms only exist in certain variants.
     const GLuint pid = variant->program->GetProgramId();
     variant->uScreenSize = glCall(glGetUniformLocation, pid, "uScreenSize");
-    variant->uTexture = glCall(glGetUniformLocation, pid, "uTexture");
+    variant->uTexColour = glCall(glGetUniformLocation, pid, "uTexColour");
+    variant->uTexMask = glCall(glGetUniformLocation, pid, "uTexMask");
     variant->uPaletteTex = glCall(glGetUniformLocation, pid, "uPaletteTex");
     variant->uPeelingTex = glCall(glGetUniformLocation, pid, "uPeelingTex");
-    variant->uAtlasLayerCount = glCall(glGetUniformLocation, pid, "uAtlasLayerCount");
 
     // One-shot uniform initialization: sampler unit bindings and cached screen size.
+    // Unit 0 = colour atlas layer, 1 = palette, 2 = peeling, 3 = mask atlas layer.
     variant->program->Use();
-    if (variant->uTexture != -1)
-        glCall(glUniform1i, variant->uTexture, 0);
+    if (variant->uTexColour != -1)
+        glCall(glUniform1i, variant->uTexColour, 0);
+    if (variant->uTexMask != -1)
+        glCall(glUniform1i, variant->uTexMask, 3);
     if (variant->uPaletteTex != -1)
         glCall(glUniform1i, variant->uPaletteTex, 1);
     if (variant->uPeelingTex != -1)
@@ -217,12 +239,6 @@ void DrawRectShader::Use()
 {
     if (auto* v = ActiveOrNull())
         v->program->Use();
-}
-
-void DrawRectShader::SetAtlasLayerCount(GLuint count)
-{
-    if (auto* v = ActiveOrNull(); v != nullptr && v->uAtlasLayerCount != -1)
-        glCall(glUniform1i, v->uAtlasLayerCount, static_cast<GLint>(count));
 }
 
 void DrawRectShader::SetScreenSize(int32_t width, int32_t height)

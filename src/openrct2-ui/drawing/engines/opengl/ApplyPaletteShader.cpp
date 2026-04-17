@@ -10,6 +10,7 @@
 #ifndef DISABLE_OPENGL
 
     #include "ApplyPaletteShader.h"
+    #include "OpenGLAPI.h"
 
 using namespace OpenRCT2::Ui;
 
@@ -88,18 +89,29 @@ ApplyPaletteShader::ApplyPaletteShader()
 
     Use();
     glCall(glUniform1i, uTexture, 0);
+    glCall(glUniform1i, uPaletteTex, 1);
+
+    // Create palette texture
+    glCall(glGenTextures, 1, &_paletteTex);
+    glCall(glBindTexture, GL_TEXTURE_2D, _paletteTex);
+    glCall(glTexParameteri, GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glCall(glTexParameteri, GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glCall(glTexParameteri, GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glCall(glTexParameteri, GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 }
 
 ApplyPaletteShader::~ApplyPaletteShader()
 {
     glCall(glDeleteBuffers, 1, &_vbo);
     glCall(glDeleteVertexArrays, 1, &_vao);
+    if (_paletteTex != 0)
+        glCall(glDeleteTextures, 1, &_paletteTex);
 }
 
 void ApplyPaletteShader::GetLocations()
 {
     uTexture = GetUniformLocation("uTexture");
-    uPalette = GetUniformLocation("uPalette");
+    uPaletteTex = GetUniformLocation("uPaletteTex");
 
     vPosition = GetAttributeLocation("vPosition");
     vTextureCoordinate = GetAttributeLocation("vTextureCoordinate");
@@ -112,11 +124,14 @@ void ApplyPaletteShader::SetTexture(GLuint texture)
 
 void ApplyPaletteShader::SetPalette(const vec4* glPalette)
 {
-    glCall(glUniform4fv, uPalette, 256, reinterpret_cast<const GLfloat*>(glPalette));
+    // Upload palette to texture instead of uniform array (for OpenGL 2.1 compatibility)
+    glCall(glBindTexture, GL_TEXTURE_2D, _paletteTex);
+    glCall(glTexImage2D, GL_TEXTURE_2D, 0, GL_RGBA, 256, 1, 0, GL_RGBA, GL_FLOAT, glPalette);
 }
 
 void ApplyPaletteShader::Draw()
 {
+    OpenGLAPI::SetTexture(1, GL_TEXTURE_2D, _paletteTex);
     glCall(glBindVertexArray, _vao);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 }

@@ -189,9 +189,8 @@ namespace OpenRCT2::Ui
     private:
         bool _initialized = false;
 
-        GLuint _atlasesTexture = 0;
+        std::vector<GLuint> _atlasLayerTextures;
         GLint _atlasesTextureDimensions = 0;
-        GLuint _atlasesTextureCapacity = 0;
         GLuint _atlasesTextureIndices = 0;
         GLint _atlasesTextureIndicesLimit = 0;
         std::vector<Atlas> _atlases;
@@ -210,10 +209,10 @@ namespace OpenRCT2::Ui
         BasicTextureInfo GetOrLoadGlyphTexture(ImageId imageId, const Drawing::PaletteMap& paletteMap);
         BasicTextureInfo GetOrLoadBitmapTexture(ImageIndex image, const void* pixels, size_t width, size_t height);
 
-        GLuint GetAtlasesTexture();
+        GLuint GetAtlasLayerTexture(GLuint layer) const;
+        GLuint GetAtlasLayerCount() const { return static_cast<GLuint>(_atlasLayerTextures.size()); }
         GLuint GetPaletteTexture();
         GLuint GetBlendPaletteTexture();
-        GLuint GetAtlasLayerCount() const { return _atlasesTextureCapacity; }
         static GLint PaletteToY(Drawing::FilterPaletteID palette);
 
     private:

@@ -13,8 +13,12 @@
 //   HAS_PALETTE    - include the palette remap (needed when paletteCount >= 1)
 //   NO_TEXTURE    - skip the main colour texture fetch (fill/filter rects)
 
-#if !defined(NO_TEXTURE) || defined(HAS_MASK)
-uniform sampler3D uTexture;
+#ifndef NO_TEXTURE
+uniform sampler2D uTexColour;
+#endif
+
+#ifdef HAS_MASK
+uniform sampler2D uTexMask;
 #endif
 
 #ifdef HAS_PALETTE
@@ -25,13 +29,12 @@ uniform sampler2D uPaletteTex;
 uniform sampler2D uPeelingTex;
 #endif
 
-varying vec4 fTexColour;
-varying vec4 fTexMask;
 varying vec4 fPalettes;  // .xyz=palette rows, .w=hintThresh
-varying vec3 fPeelPos;
 varying vec4 fMisc1;     // .x=paletteCount, .y=fColour, .z=fZoom, .w=fScreenHeight
-varying vec4 fMisc2;     // .xy=pre-divided atlas layer coords, .zw=fPosition
-varying vec4 fFlagBits;  // (noTexture, ttfText, crossHatch, mask) as 0.0/1.0
+varying vec4 fMisc2;     // .xy=unused, .zw=fPosition
+// gl_TexCoord[0].xy = colour UV   (pre-computed in vertex shader)
+// gl_TexCoord[1].xy = mask UV     (pre-computed in vertex shader)
+// gl_TexCoord[2].xyz = peel pos   (pre-computed in vertex shader)
 
 void main()
 {
@@ -40,30 +43,22 @@ void main()
     float fScreenHeight = fMisc1.w;
     vec2 fPosition = fMisc2.zw;
 
-    vec2 fragCoord = vec2(floor(gl_FragCoord.x), fScreenHeight - floor(gl_FragCoord.y) - 1.0);
-    vec2 position = (fragCoord - fPosition) * fZoom;
-
-    // --- PHASE 1: all texture fetches whose coords depend only on varyings ---
+    // --- All texture coordinates pre-computed in vertex shader via gl_TexCoord[] ---
+    // These map to T-registers on i915, giving "direct" texture lookups (0 indirect cost).
 #ifdef HAS_PEEL
-    float peelSample = texture2D(uPeelingTex, fPeelPos.xy).r;
+    float peelSample = texture2D(uPeelingTex, gl_TexCoord[2].xy).r;
 #endif
 
 #ifndef NO_TEXTURE
-    float fTexColourLayer = fMisc2.x;
-    float colourU = (fTexColour.x + position.x) / fTexColour.z;
-    float colourV = (fTexColour.y + position.y) / fTexColour.w;
-    int colourTexel = int(texture3D(uTexture, vec3(colourU, colourV, fTexColourLayer)).r * 255.0);
+    int colourTexel = int(texture2D(uTexColour, gl_TexCoord[0].xy).r * 255.0);
 #endif
 
 #ifdef HAS_MASK
-    float fTexMaskLayer = fMisc2.y;
-    float maskU = (fTexMask.x + position.x) / fTexMask.z;
-    float maskV = (fTexMask.y + position.y) / fTexMask.w;
-    int maskTexel = int(texture3D(uTexture, vec3(maskU, maskV, fTexMaskLayer)).r * 255.0);
+    int maskTexel = int(texture2D(uTexMask, gl_TexCoord[1].xy).r * 255.0);
 #endif
 
 #ifdef HAS_PEEL
-    if (peelSample == 0.0 || fPeelPos.z >= peelSample)
+    if (peelSample == 0.0 || gl_TexCoord[2].z >= peelSample)
     {
         discard;
     }
@@ -125,6 +120,9 @@ void main()
     }
 
 #ifdef HAS_CROSSHATCH
+    // Reconstruct screen-space position for crosshatch pattern
+    vec2 fragCoord = vec2(floor(gl_FragCoord.x), fScreenHeight - floor(gl_FragCoord.y) - 1.0);
+    vec2 position = (fragCoord - fPosition) * fZoom;
     if (mod(floor(position.x) + floor(position.y), 2.0) >= 0.5)
     {
         discard;

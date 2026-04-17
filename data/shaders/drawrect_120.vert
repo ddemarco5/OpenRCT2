@@ -4,7 +4,6 @@
 const float DEPTH_INCREMENT = 1.0 / float(4194304.0);  // 1 << 22 = 4194304
 
 uniform ivec2 uScreenSize;
-uniform int uAtlasLayerCount;
 
 // Flag bit values (must match drawrect_120.frag)
 const float FLAG_NO_TEXTURE = 4.0;   // 1 << 2
@@ -27,13 +26,9 @@ attribute float vZoom;
 attribute mat4x2 vVertMat;
 attribute vec2 vVertVec;
 
-varying vec4 fTexColour;
-varying vec4 fTexMask;
 varying vec4 fPalettes;  // .xyz=palette rows, .w=hintThresh
-varying vec3 fPeelPos;
 varying vec4 fMisc1;     // .x=paletteCount, .y=fColour, .z=fZoom, .w=fScreenHeight
-varying vec4 fMisc2;     // .xy=pre-divided atlas layer coords, .zw=fPosition
-varying vec4 fFlagBits;  // (noTexture, ttfText, crossHatch, mask) as 0.0/1.0
+varying vec4 fMisc2;     // .xy=unused, .zw=fPosition
 
 void main()
 {
@@ -41,27 +36,35 @@ void main()
     vec2 m = clamp(
         ((vVertMat * vClip) - (vVertMat * vBounds)) / (vBounds.zw - vBounds.xy) + vVertVec, 0.0, 1.0);
     vec2 pos = mix(vBounds.xy, vBounds.zw, m);
-    fTexColour = vTexColourCoords;
-    fTexMask = vTexMaskCoords;
 
-    // Pre-divide atlas layer indices so the fragment shader doesn't have to
-    float invLayers = 1.0 / float(uAtlasLayerCount);
-    float texColourLayer = (vTexColourAtlas + 0.5) * invLayers;
-    float texMaskLayer = (vTexMaskAtlas + 0.5) * invLayers;
-    fMisc2 = vec4(texColourLayer, texMaskLayer, vBounds.xy);
+    fMisc2 = vec4(0.0, 0.0, vBounds.xy);
+
+    // Pre-compute texture coordinates per-vertex so the fragment shader
+    // receives them via gl_TexCoord[] (T-registers on i915).  This avoids
+    // per-fragment ALU -> TEX dependency chains that blow the indirect-
+    // texture-lookup budget on Intel GMA 945.
+    float fZoomVal = vZoom;
+    vec2 fPosition = vBounds.xy;
+    vec2 fragAtVertex = pos;  // screen-space vertex position
+    vec2 vertPosition = (fragAtVertex - fPosition) * fZoomVal;
+
+    // Colour atlas UV
+    float colourU = (vTexColourCoords.x + vertPosition.x) / vTexColourCoords.z;
+    float colourV = (vTexColourCoords.y + vertPosition.y) / vTexColourCoords.w;
+    gl_TexCoord[0] = vec4(colourU, colourV, 0.0, 0.0);
+
+    // Mask atlas UV
+    float maskU = (vTexMaskCoords.x + vertPosition.x) / vTexMaskCoords.z;
+    float maskV = (vTexMaskCoords.y + vertPosition.y) / vTexMaskCoords.w;
+    gl_TexCoord[1] = vec4(maskU, maskV, 0.0, 0.0);
 
     // Transform screen coordinates to texture coordinates
     float depth = 1.0 - (vDepth + 1.0) * DEPTH_INCREMENT;
     pos = pos / vec2(uScreenSize);
     pos.y = pos.y * -1.0 + 1.0;
-    fPeelPos = vec3(pos, depth * 0.5 + 0.5);
 
-    // Pre-decode flag bits once per vertex; the fragment shader just compares these.
-    float noTextureBit = mod(floor(vFlags / FLAG_NO_TEXTURE), 2.0);
-    float ttfTextBit = mod(floor(vFlags / FLAG_TTF_TEXT), 2.0);
-    float crossHatchBit = mod(floor(vFlags / FLAG_CROSS_HATCH), 2.0);
-    float maskBit = mod(floor(vFlags / FLAG_MASK), 2.0);
-    fFlagBits = vec4(noTextureBit, ttfTextBit, crossHatchBit, maskBit);
+    // Peel position (screen UV + depth)
+    gl_TexCoord[2] = vec4(pos, depth * 0.5 + 0.5, 0.0);
 
     float paletteCount = mod(vFlags, 4.0);
     float hintThresh = mod(floor(vFlags / 256.0), 256.0);

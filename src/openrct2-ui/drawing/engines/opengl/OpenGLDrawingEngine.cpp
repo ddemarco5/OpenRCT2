@@ -87,8 +87,8 @@ private:
     } _commandBuffers;
 
     // Reusable bucket storage for shader variant partitioning.
-    // Heap-allocated to ensure proper initialization of the 32 vectors.
-    std::unique_ptr<std::array<std::vector<DrawRectCommand>, 32>> _variantBuckets;
+    // Heap-allocated to ensure proper initialization of the 64 vectors.
+    std::unique_ptr<std::array<std::vector<DrawRectCommand>, 64>> _variantBuckets;
 
     static uint8_t ComputeOutCode(ScreenCoordsXY, ScreenCoordsXY, ScreenCoordsXY);
     static bool CohenSutherlandLineClip(ScreenLine&, const RenderTarget&);
@@ -145,6 +145,7 @@ private:
     void FlushLines();
     void FlushRectangles();
     void HandleTransparency();
+    void DrawVariantBucketByAtlasLayer(const std::vector<DrawRectCommand>& bucket);
 };
 
 class OpenGLWeatherDrawer final : public IWeatherDrawer
@@ -246,18 +247,14 @@ public:
 
     void Initialise() override
     {
-        // Try OpenGL 3.3 first for full feature support, fall back to 2.1 for older hardware.
+        // TODO: revert – force GL 2.1 so the dev machine tests the _120 shader path.
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
         _context = SDL_GL_CreateContext(_window);
-
-        if (_context == nullptr)
+        if (_context != nullptr)
         {
-            LOG_WARNING("OpenGL 3.3 context unavailable, falling back to OpenGL 2.1");
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
-            _context = SDL_GL_CreateContext(_window);
+            LOG_WARNING("OpenGL context forced to 2.1 for testing");
         }
 
         if (_context == nullptr)
@@ -282,14 +279,10 @@ public:
                     || SDL_GL_GetProcAddress("glDrawArraysInstanced") != nullptr;
                 const bool hasInstancedArrays = SDL_GL_GetProcAddress("glVertexAttribDivisorARB") != nullptr
                     || SDL_GL_GetProcAddress("glVertexAttribDivisor") != nullptr;
-                const bool hasTexture3D = SDL_GL_GetProcAddress("glTexImage3D") != nullptr
-                    || SDL_GL_GetProcAddress("glTexImage3DEXT") != nullptr;
                 if (!hasDrawInstanced)
                     LOG_WARNING("GL_ARB_draw_instanced not found - instanced drawing may fail");
                 if (!hasInstancedArrays)
                     LOG_WARNING("GL_ARB_instanced_arrays not found - vertex divisors may fail");
-                if (!hasTexture3D)
-                    LOG_WARNING("GL_EXT_texture3D not found - atlas texture may fail");
             }
         }
 
@@ -662,7 +655,7 @@ std::unique_ptr<IDrawingEngine> Ui::CreateOpenGLDrawingEngine(IUiContext& uiCont
 OpenGLDrawingContext::OpenGLDrawingContext(OpenGLDrawingEngine& engine)
     : _engine(engine)
     , _commandBuffers{} // Explicitly zero-initialize command buffers
-    , _variantBuckets(std::make_unique<std::array<std::vector<DrawRectCommand>, 32>>())
+    , _variantBuckets(std::make_unique<std::array<std::vector<DrawRectCommand>, 64>>())
 {
 }
 
@@ -1324,10 +1317,10 @@ void OpenGLDrawingContext::FlushLines()
 namespace
 {
     // Partition a flat command batch into buckets keyed by DrawRectShader
-    // variant (5 bits: MASK/TTF/CROSSHATCH/PALETTE/NO_TEXTURE). The output
+    // variant (6 bits: MASK/TTF/CROSSHATCH/PALETTE/NO_TEXTURE). The output
     // `buckets` is cleared on entry.
     void PartitionCommandsByVariant(
-        const RectCommandBatch& src, std::array<std::vector<DrawRectCommand>, 32>& buckets)
+        const RectCommandBatch& src, std::array<std::vector<DrawRectCommand>, 64>& buckets)
     {
         if (src.empty())
             return;
@@ -1338,31 +1331,68 @@ namespace
             const auto& cmd = src[i];
             const int key = DrawRectShader::VariantKeyFromFlags(cmd.flags);
             const int bucketIndex = key & DrawRectShader::kInstanceBitMask;
-            if (bucketIndex >= 0 && bucketIndex < 32)
+            if (bucketIndex >= 0 && bucketIndex < 64)
                 buckets[bucketIndex].push_back(cmd);
         }
     }
 } // namespace
+
+void OpenGLDrawingContext::DrawVariantBucketByAtlasLayer(const std::vector<DrawRectCommand>& bucket)
+{
+    if (bucket.empty())
+        return;
+
+    // Sort commands by (colourAtlas, maskAtlas) so we can batch contiguous runs
+    // sharing the same atlas layer pair into a single instanced draw.
+    // Use a local copy to avoid mutating the caller's bucket.
+    thread_local std::vector<DrawRectCommand> sorted;
+    sorted.assign(bucket.begin(), bucket.end());
+    std::sort(sorted.begin(), sorted.end(), [](const DrawRectCommand& a, const DrawRectCommand& b) {
+        if (a.texColourAtlas != b.texColourAtlas)
+            return a.texColourAtlas < b.texColourAtlas;
+        return a.texMaskAtlas < b.texMaskAtlas;
+    });
+
+    size_t runStart = 0;
+    while (runStart < sorted.size())
+    {
+        const GLint colourLayer = sorted[runStart].texColourAtlas;
+        const GLint maskLayer = sorted[runStart].texMaskAtlas;
+
+        // Find end of this run
+        size_t runEnd = runStart + 1;
+        while (runEnd < sorted.size() && sorted[runEnd].texColourAtlas == colourLayer
+               && sorted[runEnd].texMaskAtlas == maskLayer)
+        {
+            ++runEnd;
+        }
+
+        // Bind the correct 2D atlas layer textures
+        OpenGLAPI::SetTexture(0, GL_TEXTURE_2D, _textureCache->GetAtlasLayerTexture(colourLayer));
+        OpenGLAPI::SetTexture(3, GL_TEXTURE_2D, _textureCache->GetAtlasLayerTexture(maskLayer));
+
+        _drawRectShader->SetInstances(&sorted[runStart], runEnd - runStart);
+        _drawRectShader->DrawInstances();
+
+        runStart = runEnd;
+    }
+}
 
 void OpenGLDrawingContext::FlushRectangles()
 {
     if (_commandBuffers.rects.empty())
         return;
 
-    OpenGLAPI::SetTexture(0, GL_TEXTURE_3D, _textureCache->GetAtlasesTexture());
     OpenGLAPI::SetTexture(1, GL_TEXTURE_2D, _textureCache->GetPaletteTexture());
 
     PartitionCommandsByVariant(_commandBuffers.rects, *_variantBuckets);
 
-    const GLuint atlasLayerCount = _textureCache->GetAtlasLayerCount();
-    for (int k = 0; k < 32; ++k)
+    for (int k = 0; k < 64; ++k)
     {
         if ((*_variantBuckets)[k].empty())
             continue;
         _drawRectShader->SelectVariant(k);
-        _drawRectShader->SetAtlasLayerCount(atlasLayerCount);
-        _drawRectShader->SetInstances((*_variantBuckets)[k].data(), (*_variantBuckets)[k].size());
-        _drawRectShader->DrawInstances();
+        DrawVariantBucketByAtlasLayer((*_variantBuckets)[k]);
     }
 
     _commandBuffers.rects.clear();
@@ -1379,7 +1409,6 @@ void OpenGLDrawingContext::HandleTransparency()
     // only the active shader (peel on/off) does.
     PartitionCommandsByVariant(_commandBuffers.transparent, *_variantBuckets);
 
-    const GLuint atlasLayerCount = _textureCache->GetAtlasLayerCount();
     const int32_t max_depth = MaxTransparencyDepth(_commandBuffers.transparent);
 
     for (int32_t i = 0; i < max_depth; ++i)
@@ -1398,17 +1427,14 @@ void OpenGLDrawingContext::HandleTransparency()
             _drawRectShader->DisablePeeling();
         }
 
-        OpenGLAPI::SetTexture(0, GL_TEXTURE_3D, _textureCache->GetAtlasesTexture());
         OpenGLAPI::SetTexture(1, GL_TEXTURE_2D, _textureCache->GetPaletteTexture());
 
-        for (int k = 0; k < 32; ++k)
+        for (int k = 0; k < 64; ++k)
         {
             if ((*_variantBuckets)[k].empty())
                 continue;
             _drawRectShader->SelectVariant(k);
-            _drawRectShader->SetAtlasLayerCount(atlasLayerCount);
-            _drawRectShader->SetInstances((*_variantBuckets)[k].data(), (*_variantBuckets)[k].size());
-            _drawRectShader->DrawInstances();
+            DrawVariantBucketByAtlasLayer((*_variantBuckets)[k]);
         }
 
         _swapFramebuffer->ApplyTransparency(
