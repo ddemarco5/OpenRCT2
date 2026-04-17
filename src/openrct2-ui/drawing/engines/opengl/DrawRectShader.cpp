@@ -11,6 +11,8 @@
 
     #include "DrawRectShader.h"
 
+    #include <openrct2/core/Console.hpp>
+
 using namespace OpenRCT2::Ui;
 
 namespace
@@ -20,56 +22,62 @@ namespace
         GLfloat mat[4][2];
         GLfloat vec[2];
     };
+
+    constexpr VDStruct kVertexData[4] = {
+        { 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+        { 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f },
+        { 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f },
+        { 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f },
+    };
+
+    constexpr size_t kInitialInstancesBufferSize = 32768;
+
+    // Shader used by every variant; only the preprocessor defines differ.
+    constexpr const char* kShaderName = "drawrect_120";
+
+    // Keep this list in sync with DrawRectShader::AttribLoc.
+    const std::initializer_list<ShaderAttribBinding> kAttribBindings = {
+        { DrawRectShader::kAttrVertMat + 0, "vVertMat" },
+        { DrawRectShader::kAttrVertVec, "vVertVec" },
+        { DrawRectShader::kAttrClip, "vClip" },
+        { DrawRectShader::kAttrTexColourAtlas, "vTexColourAtlas" },
+        { DrawRectShader::kAttrTexColourCoords, "vTexColourCoords" },
+        { DrawRectShader::kAttrTexMaskAtlas, "vTexMaskAtlas" },
+        { DrawRectShader::kAttrTexMaskCoords, "vTexMaskCoords" },
+        { DrawRectShader::kAttrPalettes, "vPalettes" },
+        { DrawRectShader::kAttrFlags, "vFlags" },
+        { DrawRectShader::kAttrColour, "vColour" },
+        { DrawRectShader::kAttrBounds, "vBounds" },
+        { DrawRectShader::kAttrDepth, "vDepth" },
+        { DrawRectShader::kAttrZoom, "vZoom" },
+    };
 } // namespace
 
-constexpr VDStruct kVertexData[4] = {
-    { 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    { 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f },
-    { 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f },
-    { 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f },
-};
-
-constexpr size_t kInitialInstancesBufferSize = 32768;
+int DrawRectShader::VariantKeyFromFlags(int32_t flags)
+{
+    int key = 0;
+    if (flags & DrawRectCommand::FLAG_MASK)
+        key |= kVarMask;
+    if (flags & DrawRectCommand::FLAG_TTF_TEXT)
+        key |= kVarTtf;
+    if (flags & DrawRectCommand::FLAG_CROSS_HATCH)
+        key |= kVarCrossHatch;
+    if ((flags & 0x3) >= 1) // paletteCount in the low 2 bits
+        key |= kVarPalette;
+    if (flags & DrawRectCommand::FLAG_NO_TEXTURE)
+        key |= kVarNoTexture;
+    return key;
+}
 
 DrawRectShader::DrawRectShader()
-    : OpenGLShaderProgram([]() -> const char* {
-        constexpr bool forceGLSL120 = true;
-
-        if (forceGLSL120)
-        {
-            LOG_WARNING("FORCE: Using GLSL 120 shader: drawrect_120");
-            return "drawrect_120";
-        }
-
-        GLint majorVersion = 0;
-        GLint minorVersion = 0;
-        glGetIntegerv(GL_MAJOR_VERSION, &majorVersion);
-        glGetIntegerv(GL_MINOR_VERSION, &minorVersion);
-
-        const char* shaderName = "drawrect";
-
-        if (majorVersion == 0 && minorVersion == 0)
-        {
-            shaderName = "drawrect_120";
-            LOG_WARNING("OpenGL version query failed, assuming OpenGL 2.1, using shader: %s", shaderName);
-        }
-        else if (majorVersion == 2 && minorVersion == 1)
-        {
-            shaderName = "drawrect_120";
-            LOG_WARNING("OpenGL 2.1 detected, using GLSL 120 shader: %s", shaderName);
-        }
-        else
-        {
-            LOG_WARNING("OpenGL %d.%d detected, using GLSL 330 shader: %s", majorVersion, minorVersion, shaderName);
-        }
-
-        return shaderName;
-    }())
-    , _maxInstancesBufferSize(kInitialInstancesBufferSize)
+    : _maxInstancesBufferSize(kInitialInstancesBufferSize)
 {
-    GetLocations();
+    LOG_WARNING("FORCE: Using GLSL 120 shader: drawrect_120 (lazy specialized variants)");
 
-    constexpr bool useGL120 = true; // Must match the forceGLSL120 flag in the lambda above
+    // Eagerly build the "empty" variant (no features, no peel) so that Use()
+    // and VAO setup below have something bound. All other variants are built
+    // lazily on first SelectVariant() for their key.
+    EnsureVariant(0);
 
     glCall(glGenBuffers, 1, &_vbo);
     glCall(glGenBuffers, 1, &_vboInstances);
@@ -81,136 +89,72 @@ DrawRectShader::DrawRectShader()
     glCall(glBindVertexArray, _vao);
 
     glCall(
-        glVertexAttribPointer, vVertMat + 0, 2, GL_FLOAT, GL_FALSE, glSizeOf<VDStruct>(),
+        glVertexAttribPointer, static_cast<GLuint>(kAttrVertMat + 0), 2, GL_FLOAT, GL_FALSE, glSizeOf<VDStruct>(),
         reinterpret_cast<void*>(offsetof(VDStruct, mat[0])));
     glCall(
-        glVertexAttribPointer, vVertMat + 1, 2, GL_FLOAT, GL_FALSE, glSizeOf<VDStruct>(),
+        glVertexAttribPointer, static_cast<GLuint>(kAttrVertMat + 1), 2, GL_FLOAT, GL_FALSE, glSizeOf<VDStruct>(),
         reinterpret_cast<void*>(offsetof(VDStruct, mat[1])));
     glCall(
-        glVertexAttribPointer, vVertMat + 2, 2, GL_FLOAT, GL_FALSE, glSizeOf<VDStruct>(),
+        glVertexAttribPointer, static_cast<GLuint>(kAttrVertMat + 2), 2, GL_FLOAT, GL_FALSE, glSizeOf<VDStruct>(),
         reinterpret_cast<void*>(offsetof(VDStruct, mat[2])));
     glCall(
-        glVertexAttribPointer, vVertMat + 3, 2, GL_FLOAT, GL_FALSE, glSizeOf<VDStruct>(),
+        glVertexAttribPointer, static_cast<GLuint>(kAttrVertMat + 3), 2, GL_FLOAT, GL_FALSE, glSizeOf<VDStruct>(),
         reinterpret_cast<void*>(offsetof(VDStruct, mat[3])));
     glCall(
-        glVertexAttribPointer, vVertVec, 2, GL_FLOAT, GL_FALSE, glSizeOf<VDStruct>(),
+        glVertexAttribPointer, static_cast<GLuint>(kAttrVertVec), 2, GL_FLOAT, GL_FALSE, glSizeOf<VDStruct>(),
         reinterpret_cast<void*>(offsetof(VDStruct, vec)));
 
     glCall(glBindBuffer, GL_ARRAY_BUFFER, _vboInstances);
     glCall(glBufferData, GL_ARRAY_BUFFER, sizeof(DrawRectCommand) * kInitialInstancesBufferSize, nullptr, GL_STREAM_DRAW);
 
-    if (useGL120)
+    // drawrect_120.vert declares integer instance attributes as float;
+    // glVertexAttribPointer converts GL_INT/GL_UNSIGNED_INT data to float.
+    glCall(
+        glVertexAttribPointer, static_cast<GLuint>(kAttrClip), 4, GL_INT, GL_FALSE, glSizeOf<DrawRectCommand>(),
+        reinterpret_cast<void*>(offsetof(DrawRectCommand, clip)));
+    glCall(
+        glVertexAttribPointer, static_cast<GLuint>(kAttrTexColourAtlas), 1, GL_INT, GL_FALSE, glSizeOf<DrawRectCommand>(),
+        reinterpret_cast<void*>(offsetof(DrawRectCommand, texColourAtlas)));
+    glCall(
+        glVertexAttribPointer, static_cast<GLuint>(kAttrTexColourCoords), 4, GL_FLOAT, GL_FALSE,
+        glSizeOf<DrawRectCommand>(), reinterpret_cast<void*>(offsetof(DrawRectCommand, texColourBounds)));
+    glCall(
+        glVertexAttribPointer, static_cast<GLuint>(kAttrTexMaskAtlas), 1, GL_INT, GL_FALSE, glSizeOf<DrawRectCommand>(),
+        reinterpret_cast<void*>(offsetof(DrawRectCommand, texMaskAtlas)));
+    glCall(
+        glVertexAttribPointer, static_cast<GLuint>(kAttrTexMaskCoords), 4, GL_FLOAT, GL_FALSE,
+        glSizeOf<DrawRectCommand>(), reinterpret_cast<void*>(offsetof(DrawRectCommand, texMaskBounds)));
+    glCall(
+        glVertexAttribPointer, static_cast<GLuint>(kAttrPalettes), 3, GL_INT, GL_FALSE, glSizeOf<DrawRectCommand>(),
+        reinterpret_cast<void*>(offsetof(DrawRectCommand, palettes)));
+    glCall(
+        glVertexAttribPointer, static_cast<GLuint>(kAttrFlags), 1, GL_INT, GL_FALSE, glSizeOf<DrawRectCommand>(),
+        reinterpret_cast<void*>(offsetof(DrawRectCommand, flags)));
+    glCall(
+        glVertexAttribPointer, static_cast<GLuint>(kAttrColour), 1, GL_UNSIGNED_INT, GL_FALSE,
+        glSizeOf<DrawRectCommand>(), reinterpret_cast<void*>(offsetof(DrawRectCommand, colour)));
+    glCall(
+        glVertexAttribPointer, static_cast<GLuint>(kAttrBounds), 4, GL_INT, GL_FALSE, glSizeOf<DrawRectCommand>(),
+        reinterpret_cast<void*>(offsetof(DrawRectCommand, bounds)));
+    glCall(
+        glVertexAttribPointer, static_cast<GLuint>(kAttrDepth), 1, GL_INT, GL_FALSE, glSizeOf<DrawRectCommand>(),
+        reinterpret_cast<void*>(offsetof(DrawRectCommand, depth)));
+    glCall(
+        glVertexAttribPointer, static_cast<GLuint>(kAttrZoom), 1, GL_FLOAT, GL_FALSE, glSizeOf<DrawRectCommand>(),
+        reinterpret_cast<void*>(offsetof(DrawRectCommand, zoom)));
+
+    for (GLint i = 0; i <= kAttrZoom; ++i)
     {
-        // drawrect_120.vert declares integer instance attributes as float;
-        // glVertexAttribPointer converts GL_INT/GL_UNSIGNED_INT data to float.
-        glCall(
-            glVertexAttribPointer, vClip, 4, GL_INT, GL_FALSE, glSizeOf<DrawRectCommand>(),
-            reinterpret_cast<void*>(offsetof(DrawRectCommand, clip)));
-        glCall(
-            glVertexAttribPointer, vTexColourAtlas, 1, GL_INT, GL_FALSE, glSizeOf<DrawRectCommand>(),
-            reinterpret_cast<void*>(offsetof(DrawRectCommand, texColourAtlas)));
-        glCall(
-            glVertexAttribPointer, vTexColourCoords, 4, GL_FLOAT, GL_FALSE, glSizeOf<DrawRectCommand>(),
-            reinterpret_cast<void*>(offsetof(DrawRectCommand, texColourBounds)));
-        glCall(
-            glVertexAttribPointer, vTexMaskAtlas, 1, GL_INT, GL_FALSE, glSizeOf<DrawRectCommand>(),
-            reinterpret_cast<void*>(offsetof(DrawRectCommand, texMaskAtlas)));
-        glCall(
-            glVertexAttribPointer, vTexMaskCoords, 4, GL_FLOAT, GL_FALSE, glSizeOf<DrawRectCommand>(),
-            reinterpret_cast<void*>(offsetof(DrawRectCommand, texMaskBounds)));
-        glCall(
-            glVertexAttribPointer, vPalettes, 3, GL_INT, GL_FALSE, glSizeOf<DrawRectCommand>(),
-            reinterpret_cast<void*>(offsetof(DrawRectCommand, palettes)));
-        glCall(
-            glVertexAttribPointer, vFlags, 1, GL_INT, GL_FALSE, glSizeOf<DrawRectCommand>(),
-            reinterpret_cast<void*>(offsetof(DrawRectCommand, flags)));
-        glCall(
-            glVertexAttribPointer, vColour, 1, GL_UNSIGNED_INT, GL_FALSE, glSizeOf<DrawRectCommand>(),
-            reinterpret_cast<void*>(offsetof(DrawRectCommand, colour)));
-        glCall(
-            glVertexAttribPointer, vBounds, 4, GL_INT, GL_FALSE, glSizeOf<DrawRectCommand>(),
-            reinterpret_cast<void*>(offsetof(DrawRectCommand, bounds)));
-        glCall(
-            glVertexAttribPointer, vDepth, 1, GL_INT, GL_FALSE, glSizeOf<DrawRectCommand>(),
-            reinterpret_cast<void*>(offsetof(DrawRectCommand, depth)));
-        glCall(
-            glVertexAttribPointer, vZoom, 1, GL_FLOAT, GL_FALSE, glSizeOf<DrawRectCommand>(),
-            reinterpret_cast<void*>(offsetof(DrawRectCommand, zoom)));
-    }
-    else
-    {
-        // drawrect.vert (GLSL 330) uses integer attribute types; requires glVertexAttribIPointer.
-        glCall(
-            glVertexAttribIPointer, vClip, 4, GL_INT, glSizeOf<DrawRectCommand>(),
-            reinterpret_cast<void*>(offsetof(DrawRectCommand, clip)));
-        glCall(
-            glVertexAttribIPointer, vTexColourAtlas, 1, GL_INT, glSizeOf<DrawRectCommand>(),
-            reinterpret_cast<void*>(offsetof(DrawRectCommand, texColourAtlas)));
-        glCall(
-            glVertexAttribPointer, vTexColourCoords, 4, GL_FLOAT, GL_FALSE, glSizeOf<DrawRectCommand>(),
-            reinterpret_cast<void*>(offsetof(DrawRectCommand, texColourBounds)));
-        glCall(
-            glVertexAttribIPointer, vTexMaskAtlas, 1, GL_INT, glSizeOf<DrawRectCommand>(),
-            reinterpret_cast<void*>(offsetof(DrawRectCommand, texMaskAtlas)));
-        glCall(
-            glVertexAttribPointer, vTexMaskCoords, 4, GL_FLOAT, GL_FALSE, glSizeOf<DrawRectCommand>(),
-            reinterpret_cast<void*>(offsetof(DrawRectCommand, texMaskBounds)));
-        glCall(
-            glVertexAttribIPointer, vPalettes, 3, GL_INT, glSizeOf<DrawRectCommand>(),
-            reinterpret_cast<void*>(offsetof(DrawRectCommand, palettes)));
-        glCall(
-            glVertexAttribIPointer, vFlags, 1, GL_INT, glSizeOf<DrawRectCommand>(),
-            reinterpret_cast<void*>(offsetof(DrawRectCommand, flags)));
-        glCall(
-            glVertexAttribIPointer, vColour, 1, GL_UNSIGNED_INT, glSizeOf<DrawRectCommand>(),
-            reinterpret_cast<void*>(offsetof(DrawRectCommand, colour)));
-        glCall(
-            glVertexAttribIPointer, vBounds, 4, GL_INT, glSizeOf<DrawRectCommand>(),
-            reinterpret_cast<void*>(offsetof(DrawRectCommand, bounds)));
-        glCall(
-            glVertexAttribIPointer, vDepth, 1, GL_INT, glSizeOf<DrawRectCommand>(),
-            reinterpret_cast<void*>(offsetof(DrawRectCommand, depth)));
-        glCall(
-            glVertexAttribPointer, vZoom, 1, GL_FLOAT, GL_FALSE, glSizeOf<DrawRectCommand>(),
-            reinterpret_cast<void*>(offsetof(DrawRectCommand, zoom)));
+        glCall(glEnableVertexAttribArray, static_cast<GLuint>(i));
     }
 
-    glCall(glEnableVertexAttribArray, vVertMat + 0);
-    glCall(glEnableVertexAttribArray, vVertMat + 1);
-    glCall(glEnableVertexAttribArray, vVertMat + 2);
-    glCall(glEnableVertexAttribArray, vVertMat + 3);
-    glCall(glEnableVertexAttribArray, vVertVec);
-
-    glCall(glEnableVertexAttribArray, vClip);
-    glCall(glEnableVertexAttribArray, vTexColourAtlas);
-    glCall(glEnableVertexAttribArray, vTexColourCoords);
-    glCall(glEnableVertexAttribArray, vTexMaskAtlas);
-    glCall(glEnableVertexAttribArray, vTexMaskCoords);
-    glCall(glEnableVertexAttribArray, vPalettes);
-    glCall(glEnableVertexAttribArray, vFlags);
-    glCall(glEnableVertexAttribArray, vColour);
-    glCall(glEnableVertexAttribArray, vBounds);
-    glCall(glEnableVertexAttribArray, vDepth);
-    glCall(glEnableVertexAttribArray, vZoom);
-
-    glCall(glVertexAttribDivisor, vClip, 1);
-    glCall(glVertexAttribDivisor, vTexColourAtlas, 1);
-    glCall(glVertexAttribDivisor, vTexColourCoords, 1);
-    glCall(glVertexAttribDivisor, vTexMaskAtlas, 1);
-    glCall(glVertexAttribDivisor, vTexMaskCoords, 1);
-    glCall(glVertexAttribDivisor, vPalettes, 1);
-    glCall(glVertexAttribDivisor, vFlags, 1);
-    glCall(glVertexAttribDivisor, vColour, 1);
-    glCall(glVertexAttribDivisor, vBounds, 1);
-    glCall(glVertexAttribDivisor, vDepth, 1);
-    glCall(glVertexAttribDivisor, vZoom, 1);
+    // Per-instance divisors (all per-instance attributes except vVertMat/vVertVec which are per-vertex)
+    for (GLint i = kAttrClip; i <= kAttrZoom; ++i)
+    {
+        glCall(glVertexAttribDivisor, static_cast<GLuint>(i), 1);
+    }
 
     Use();
-    glCall(glUniform1i, uTexture, 0);
-    glCall(glUniform1i, uPaletteTex, 1);
-
-    glCall(glUniform1i, uPeelingTex, 2);
-    glCall(glUniform1i, uPeeling, 0);
 }
 
 DrawRectShader::~DrawRectShader()
@@ -220,71 +164,127 @@ DrawRectShader::~DrawRectShader()
     glCall(glDeleteVertexArrays, 1, &_vao);
 }
 
-void DrawRectShader::GetLocations()
+DrawRectShader::ProgramVariant& DrawRectShader::EnsureVariant(int key)
 {
-    uScreenSize = GetUniformLocation("uScreenSize");
-    uTexture = GetUniformLocation("uTexture");
-    uPaletteTex = GetUniformLocation("uPaletteTex");
+    if (_variants[key] != nullptr)
+        return *_variants[key];
 
-    uPeelingTex = GetUniformLocation("uPeelingTex");
-    uPeeling = GetUniformLocation("uPeeling");
+    // Compose the set of #defines for this key.
+    std::string defines;
+    defines.reserve(128);
+    if (key & kVarPeel)
+        defines += "#define HAS_PEEL\n";
+    if (key & kVarMask)
+        defines += "#define HAS_MASK\n";
+    if (key & kVarTtf)
+        defines += "#define HAS_TTF\n";
+    if (key & kVarCrossHatch)
+        defines += "#define HAS_CROSSHATCH\n";
+    if (key & kVarPalette)
+        defines += "#define HAS_PALETTE\n";
+    if (key & kVarNoTexture)
+        defines += "#define NO_TEXTURE\n";
 
-    uAtlasLayerCount = GetUniformLocation("uAtlasLayerCount");
+    auto variant = std::make_unique<ProgramVariant>();
+    variant->program = std::make_unique<OpenGLShaderProgram>(kShaderName, defines, kAttribBindings);
 
-    vClip = GetAttributeLocation("vClip");
-    vTexColourAtlas = GetAttributeLocation("vTexColourAtlas");
-    vTexColourCoords = GetAttributeLocation("vTexColourCoords");
-    vTexMaskAtlas = GetAttributeLocation("vTexMaskAtlas");
-    vTexMaskCoords = GetAttributeLocation("vTexMaskCoords");
-    vPalettes = GetAttributeLocation("vPalettes");
-    vFlags = GetAttributeLocation("vFlags");
-    vColour = GetAttributeLocation("vColour");
-    vBounds = GetAttributeLocation("vBounds");
-    vDepth = GetAttributeLocation("vDepth");
-    vZoom = GetAttributeLocation("vZoom");
+    // Use raw glGetUniformLocation to avoid the error-log noise that
+    // OpenGLShaderProgram::GetUniformLocation emits for missing uniforms;
+    // some uniforms only exist in certain variants.
+    const GLuint pid = variant->program->GetProgramId();
+    variant->uScreenSize = glCall(glGetUniformLocation, pid, "uScreenSize");
+    variant->uTexture = glCall(glGetUniformLocation, pid, "uTexture");
+    variant->uPaletteTex = glCall(glGetUniformLocation, pid, "uPaletteTex");
+    variant->uPeelingTex = glCall(glGetUniformLocation, pid, "uPeelingTex");
+    variant->uAtlasLayerCount = glCall(glGetUniformLocation, pid, "uAtlasLayerCount");
 
-    vVertMat = GetAttributeLocation("vVertMat");
-    vVertVec = GetAttributeLocation("vVertVec");
+    // One-shot uniform initialization: sampler unit bindings and cached screen size.
+    variant->program->Use();
+    if (variant->uTexture != -1)
+        glCall(glUniform1i, variant->uTexture, 0);
+    if (variant->uPaletteTex != -1)
+        glCall(glUniform1i, variant->uPaletteTex, 1);
+    if (variant->uPeelingTex != -1)
+        glCall(glUniform1i, variant->uPeelingTex, 2);
+    if (variant->uScreenSize != -1 && (_screenWidth | _screenHeight) != 0)
+        glCall(glUniform2i, variant->uScreenSize, _screenWidth, _screenHeight);
+
+    _variants[key] = std::move(variant);
+    return *_variants[key];
+}
+
+void DrawRectShader::Use()
+{
+    if (auto* v = ActiveOrNull())
+        v->program->Use();
 }
 
 void DrawRectShader::SetAtlasLayerCount(GLuint count)
 {
-    glCall(glUniform1i, uAtlasLayerCount, static_cast<GLint>(count));
+    if (auto* v = ActiveOrNull(); v != nullptr && v->uAtlasLayerCount != -1)
+        glCall(glUniform1i, v->uAtlasLayerCount, static_cast<GLint>(count));
 }
 
 void DrawRectShader::SetScreenSize(int32_t width, int32_t height)
 {
-    glCall(glUniform2i, uScreenSize, width, height);
+    _screenWidth = width;
+    _screenHeight = height;
+    // Propagate to every already-built variant so we don't need to track
+    // dirty flags per variant.
+    for (auto& v : _variants)
+    {
+        if (v == nullptr || v->uScreenSize == -1)
+            continue;
+        v->program->Use();
+        glCall(glUniform2i, v->uScreenSize, width, height);
+    }
+    // Re-bind the currently active program.
+    if (auto* v = ActiveOrNull())
+        v->program->Use();
 }
 
 void DrawRectShader::EnablePeeling(GLuint peelingTex)
 {
     OpenGLAPI::SetTexture(2, GL_TEXTURE_2D, peelingTex);
-    glCall(glUniform1i, uPeeling, 1);
+    _peelActive = true;
+    // Keep the currently-selected instance key, but recompute effective variant.
+    SelectVariant(_activeKey & kInstanceBitMask);
 }
 
 void DrawRectShader::DisablePeeling()
 {
-    glCall(glUniform1i, uPeeling, 0);
+    _peelActive = false;
+    SelectVariant(_activeKey & kInstanceBitMask);
+}
+
+void DrawRectShader::SelectVariant(int instanceKey)
+{
+    const int key = (instanceKey & kInstanceBitMask) | (_peelActive ? kVarPeel : 0);
+    _activeKey = key;
+    EnsureVariant(key).program->Use();
+}
+
+void DrawRectShader::SetInstances(const DrawRectCommand* data, size_t count)
+{
+    glCall(glBindVertexArray, _vao);
+    glCall(glBindBuffer, GL_ARRAY_BUFFER, _vboInstances);
+
+    if (count > _maxInstancesBufferSize)
+    {
+        glCall(glBufferData, GL_ARRAY_BUFFER, sizeof(DrawRectCommand) * count, data, GL_STREAM_DRAW);
+        _maxInstancesBufferSize = count;
+    }
+    else
+    {
+        glCall(glBufferSubData, GL_ARRAY_BUFFER, 0, sizeof(DrawRectCommand) * count, data);
+    }
+
+    _instanceCount = static_cast<GLsizei>(count);
 }
 
 void DrawRectShader::SetInstances(const RectCommandBatch& instances)
 {
-    glCall(glBindVertexArray, _vao);
-
-    glCall(glBindBuffer, GL_ARRAY_BUFFER, _vboInstances);
-
-    if (instances.size() > _maxInstancesBufferSize)
-    {
-        glCall(glBufferData, GL_ARRAY_BUFFER, sizeof(DrawRectCommand) * instances.size(), instances.data(), GL_STREAM_DRAW);
-        _maxInstancesBufferSize = instances.size();
-    }
-    else
-    {
-        glCall(glBufferSubData, GL_ARRAY_BUFFER, 0, sizeof(DrawRectCommand) * instances.size(), instances.data());
-    }
-
-    _instanceCount = static_cast<GLsizei>(instances.size());
+    SetInstances(instances.data(), instances.size());
 }
 
 void DrawRectShader::DrawInstances()

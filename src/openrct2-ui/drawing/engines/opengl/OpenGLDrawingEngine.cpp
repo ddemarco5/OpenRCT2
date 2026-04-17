@@ -86,6 +86,10 @@ private:
         RectCommandBatch transparent;
     } _commandBuffers;
 
+    // Reusable bucket storage for shader variant partitioning.
+    // Heap-allocated to ensure proper initialization of the 32 vectors.
+    std::unique_ptr<std::array<std::vector<DrawRectCommand>, 32>> _variantBuckets;
+
     static uint8_t ComputeOutCode(ScreenCoordsXY, ScreenCoordsXY, ScreenCoordsXY);
     static bool CohenSutherlandLineClip(ScreenLine&, const RenderTarget&);
     [[nodiscard]] ScreenRect CalculateClipping(const RenderTarget& rt) const;
@@ -657,6 +661,8 @@ std::unique_ptr<IDrawingEngine> Ui::CreateOpenGLDrawingEngine(IUiContext& uiCont
 
 OpenGLDrawingContext::OpenGLDrawingContext(OpenGLDrawingEngine& engine)
     : _engine(engine)
+    , _commandBuffers{} // Explicitly zero-initialize command buffers
+    , _variantBuckets(std::make_unique<std::array<std::vector<DrawRectCommand>, 32>>())
 {
 }
 
@@ -1315,6 +1321,29 @@ void OpenGLDrawingContext::FlushLines()
     _commandBuffers.lines.clear();
 }
 
+namespace
+{
+    // Partition a flat command batch into buckets keyed by DrawRectShader
+    // variant (5 bits: MASK/TTF/CROSSHATCH/PALETTE/NO_TEXTURE). The output
+    // `buckets` is cleared on entry.
+    void PartitionCommandsByVariant(
+        const RectCommandBatch& src, std::array<std::vector<DrawRectCommand>, 32>& buckets)
+    {
+        if (src.empty())
+            return;
+        for (auto& b : buckets)
+            b.clear();
+        for (size_t i = 0; i < src.size(); ++i)
+        {
+            const auto& cmd = src[i];
+            const int key = DrawRectShader::VariantKeyFromFlags(cmd.flags);
+            const int bucketIndex = key & DrawRectShader::kInstanceBitMask;
+            if (bucketIndex >= 0 && bucketIndex < 32)
+                buckets[bucketIndex].push_back(cmd);
+        }
+    }
+} // namespace
+
 void OpenGLDrawingContext::FlushRectangles()
 {
     if (_commandBuffers.rects.empty())
@@ -1323,10 +1352,18 @@ void OpenGLDrawingContext::FlushRectangles()
     OpenGLAPI::SetTexture(0, GL_TEXTURE_3D, _textureCache->GetAtlasesTexture());
     OpenGLAPI::SetTexture(1, GL_TEXTURE_2D, _textureCache->GetPaletteTexture());
 
-    _drawRectShader->Use();
-    _drawRectShader->SetAtlasLayerCount(_textureCache->GetAtlasLayerCount());
-    _drawRectShader->SetInstances(_commandBuffers.rects);
-    _drawRectShader->DrawInstances();
+    PartitionCommandsByVariant(_commandBuffers.rects, *_variantBuckets);
+
+    const GLuint atlasLayerCount = _textureCache->GetAtlasLayerCount();
+    for (int k = 0; k < 32; ++k)
+    {
+        if ((*_variantBuckets)[k].empty())
+            continue;
+        _drawRectShader->SelectVariant(k);
+        _drawRectShader->SetAtlasLayerCount(atlasLayerCount);
+        _drawRectShader->SetInstances((*_variantBuckets)[k].data(), (*_variantBuckets)[k].size());
+        _drawRectShader->DrawInstances();
+    }
 
     _commandBuffers.rects.clear();
 }
@@ -1338,29 +1375,42 @@ void OpenGLDrawingContext::HandleTransparency()
         return;
     }
 
-    _drawRectShader->Use();
-    _drawRectShader->SetInstances(_commandBuffers.transparent);
+    // Partition once: the command set doesn't change between peel iterations,
+    // only the active shader (peel on/off) does.
+    PartitionCommandsByVariant(_commandBuffers.transparent, *_variantBuckets);
 
-    int32_t max_depth = MaxTransparencyDepth(_commandBuffers.transparent);
+    const GLuint atlasLayerCount = _textureCache->GetAtlasLayerCount();
+    const int32_t max_depth = MaxTransparencyDepth(_commandBuffers.transparent);
+
     for (int32_t i = 0; i < max_depth; ++i)
     {
         _swapFramebuffer->BindTransparent();
 
         glCall(glEnable, GL_DEPTH_TEST);
         glCall(glDepthFunc, GL_GREATER);
-        _drawRectShader->Use();
 
         if (i > 0)
         {
             _drawRectShader->EnablePeeling(_swapFramebuffer->GetBackDepthTexture());
         }
+        else
+        {
+            _drawRectShader->DisablePeeling();
+        }
 
         OpenGLAPI::SetTexture(0, GL_TEXTURE_3D, _textureCache->GetAtlasesTexture());
         OpenGLAPI::SetTexture(1, GL_TEXTURE_2D, _textureCache->GetPaletteTexture());
 
-        _drawRectShader->Use();
-        _drawRectShader->SetAtlasLayerCount(_textureCache->GetAtlasLayerCount());
-        _drawRectShader->DrawInstances();
+        for (int k = 0; k < 32; ++k)
+        {
+            if ((*_variantBuckets)[k].empty())
+                continue;
+            _drawRectShader->SelectVariant(k);
+            _drawRectShader->SetAtlasLayerCount(atlasLayerCount);
+            _drawRectShader->SetInstances((*_variantBuckets)[k].data(), (*_variantBuckets)[k].size());
+            _drawRectShader->DrawInstances();
+        }
+
         _swapFramebuffer->ApplyTransparency(
             *_applyTransparencyShader, _textureCache->GetPaletteTexture(), _textureCache->GetBlendPaletteTexture());
     }

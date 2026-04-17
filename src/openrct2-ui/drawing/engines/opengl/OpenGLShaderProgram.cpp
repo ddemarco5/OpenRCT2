@@ -20,11 +20,11 @@
 
 using namespace OpenRCT2::Ui;
 
-OpenGLShader::OpenGLShader(const char* name, GLenum type)
+OpenGLShader::OpenGLShader(const char* name, GLenum type, std::string_view defines)
     : _type(type)
 {
     auto path = GetPath(name);
-    auto sourceCode = ReadSourceCode(path);
+    auto sourceCode = InjectDefines(ReadSourceCode(path), defines);
     auto sourceCodeStr = sourceCode.c_str();
 
     _id = glCall(glCreateShader, type);
@@ -87,10 +87,45 @@ std::string OpenGLShader::ReadSourceCode(const std::string& path)
     return fileData;
 }
 
-OpenGLShaderProgram::OpenGLShaderProgram(const char* name)
+std::string OpenGLShader::InjectDefines(std::string source, std::string_view defines)
 {
-    _vertexShader = std::make_unique<OpenGLShader>(name, GL_VERTEX_SHADER);
-    _fragmentShader = std::make_unique<OpenGLShader>(name, GL_FRAGMENT_SHADER);
+    // No-op when there's nothing to inject.
+    if (defines.empty())
+    {
+        return source;
+    }
+
+    // GLSL requires #version to be the first non-comment/whitespace token, so
+    // defines must be inserted AFTER the #version line. If there is no #version
+    // directive (shouldn't happen in this codebase), fall back to prepending.
+    size_t versionPos = source.find("#version");
+    if (versionPos == std::string::npos)
+    {
+        return std::string(defines) + "\n" + source;
+    }
+
+    size_t nlPos = source.find('\n', versionPos);
+    if (nlPos == std::string::npos)
+    {
+        return source + "\n" + std::string(defines) + "\n";
+    }
+
+    std::string result;
+    result.reserve(source.size() + defines.size() + 2);
+    result.append(source, 0, nlPos + 1);
+    result.append(defines);
+    if (defines.back() != '\n')
+    {
+        result.push_back('\n');
+    }
+    result.append(source, nlPos + 1, std::string::npos);
+    return result;
+}
+
+OpenGLShaderProgram::OpenGLShaderProgram(const char* name, std::string_view defines)
+{
+    _vertexShader = std::make_unique<OpenGLShader>(name, GL_VERTEX_SHADER, defines);
+    _fragmentShader = std::make_unique<OpenGLShader>(name, GL_FRAGMENT_SHADER, defines);
 
     _id = glCall(glCreateProgram);
     glCall(glAttachShader, _id, _vertexShader->GetShaderId());
@@ -98,6 +133,44 @@ OpenGLShaderProgram::OpenGLShaderProgram(const char* name)
     
     // GLSL 120 shaders use gl_FragColor (built-in), GLSL 330 shaders use out vec4 oColour
     // Only bind fragment data location for GLSL 330 shaders
+    const size_t nameLen = strlen(name);
+    if (!(nameLen > 4 && strcmp(name + nameLen - 4, "_120") == 0))
+    {
+        glCall(glBindFragDataLocation, _id, 0, "oColour");
+    }
+
+    if (!Link())
+    {
+        char buffer[512];
+        GLsizei length;
+        glGetProgramInfoLog(_id, sizeof(buffer), &length, buffer);
+
+        Console::Error::WriteLine("Error linking %s", name);
+        Console::Error::WriteLine(buffer);
+
+        throw std::runtime_error("Failed to link OpenGL shader.");
+    }
+}
+
+OpenGLShaderProgram::OpenGLShaderProgram(
+    const char* name, std::string_view defines, std::initializer_list<ShaderAttribBinding> attribBindings)
+{
+    _vertexShader = std::make_unique<OpenGLShader>(name, GL_VERTEX_SHADER, defines);
+    _fragmentShader = std::make_unique<OpenGLShader>(name, GL_FRAGMENT_SHADER, defines);
+
+    _id = glCall(glCreateProgram);
+    glCall(glAttachShader, _id, _vertexShader->GetShaderId());
+    glCall(glAttachShader, _id, _fragmentShader->GetShaderId());
+
+    // Explicitly bind attribute locations BEFORE linking so that multiple
+    // program variants built from the same source share identical attribute
+    // slots and a single VAO can feed any of them.
+    for (const auto& binding : attribBindings)
+    {
+        glCall(glBindAttribLocation, _id, binding.index, binding.name);
+    }
+
+    // GLSL 120 shaders use gl_FragColor (built-in), GLSL 330 shaders use out vec4 oColour
     const size_t nameLen = strlen(name);
     if (!(nameLen > 4 && strcmp(name + nameLen - 4, "_120") == 0))
     {

@@ -11,10 +11,18 @@
 
 #include "OpenGLAPI.h"
 
+#include <initializer_list>
 #include <memory>
 #include <string>
+#include <string_view>
 namespace OpenRCT2::Ui
 {
+    struct ShaderAttribBinding
+    {
+        GLuint index;
+        const char* name;
+    };
+
     class OpenGLShader final
     {
     private:
@@ -24,7 +32,7 @@ namespace OpenRCT2::Ui
         GLuint _id = 0;
 
     public:
-        OpenGLShader(const char* name, GLenum type);
+        OpenGLShader(const char* name, GLenum type, std::string_view defines = {});
         ~OpenGLShader();
 
         GLuint GetShaderId();
@@ -32,6 +40,7 @@ namespace OpenRCT2::Ui
     private:
         std::string GetPath(const std::string& name);
         static std::string ReadSourceCode(const std::string& path);
+        static std::string InjectDefines(std::string source, std::string_view defines);
     };
 
     class OpenGLShaderProgram
@@ -42,7 +51,10 @@ namespace OpenRCT2::Ui
         std::unique_ptr<OpenGLShader> _fragmentShader;
 
     public:
-        explicit OpenGLShaderProgram(const char* name);
+        explicit OpenGLShaderProgram(const char* name, std::string_view defines = {});
+        OpenGLShaderProgram(
+            const char* name, std::string_view defines,
+            std::initializer_list<ShaderAttribBinding> attribBindings);
         explicit OpenGLShaderProgram(const OpenGLShaderProgram&) = delete;
         explicit OpenGLShaderProgram(OpenGLShaderProgram&&) = default;
         virtual ~OpenGLShaderProgram();
@@ -50,6 +62,10 @@ namespace OpenRCT2::Ui
         GLint GetAttributeLocation(const char* name);
         GLint GetUniformLocation(const char* name);
         void Use();
+        GLuint GetProgramId() const
+        {
+            return _id;
+        }
 
     private:
         bool Link();
