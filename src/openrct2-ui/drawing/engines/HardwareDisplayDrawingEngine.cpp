@@ -21,6 +21,7 @@
 #include <openrct2/drawing/X8DrawingEngine.h>
 #include <openrct2/interface/Window.h>
 #include <openrct2/paint/Paint.h>
+#include <openrct2/profiling/FrameProfiler.hpp>
 #include <openrct2/ui/UiContext.h>
 #include <vector>
 
@@ -248,6 +249,8 @@ private:
         }
         else
         {
+            auto timer = OpenRCT2::Profiling::FramePhaseTimer(
+                OpenRCT2::Profiling::FramePhase::CopyBitsToTexture);
             CopyBitsToTexture(
                 _screenTexture, _bits, static_cast<int32_t>(_width), static_cast<int32_t>(_height), _paletteHWMapped);
         }
@@ -269,7 +272,11 @@ private:
             RenderDirtyVisuals();
         }
 
-        SDL_RenderPresent(_sdlRenderer);
+        {
+            auto timer = OpenRCT2::Profiling::FramePhaseTimer(
+                OpenRCT2::Profiling::FramePhase::SDLRenderPresent);
+            SDL_RenderPresent(_sdlRenderer);
+        }
     }
 
     void CopyBitsToTexture(SDL_Texture* texture, PaletteIndex* src, int32_t width, int32_t height, const uint32_t* palette)

@@ -20,6 +20,7 @@ namespace OpenRCT2::Ui
     [[nodiscard]] std::unique_ptr<Drawing::IDrawingEngine> CreateHardwareDisplayDrawingEngine(IUiContext& uiContext);
 #ifndef DISABLE_OPENGL
     [[nodiscard]] std::unique_ptr<Drawing::IDrawingEngine> CreateOpenGLDrawingEngine(IUiContext& uiContext);
+    [[nodiscard]] std::unique_ptr<Drawing::IDrawingEngine> CreateHybridDisplayDrawingEngine(IUiContext& uiContext);
 #endif
 
     class DrawingEngineFactory final : public Drawing::IDrawingEngineFactory
@@ -34,6 +35,8 @@ namespace OpenRCT2::Ui
 #ifndef DISABLE_OPENGL
                 case DrawingEngine::OpenGL:
                     return CreateOpenGLDrawingEngine(uiContext);
+                case DrawingEngine::SoftwareWithOpenGLPresent:
+                    return CreateHybridDisplayDrawingEngine(uiContext);
 #endif
                 default:
                     Guard::Fail("Unknown renderer: %u", static_cast<uint32_t>(type));

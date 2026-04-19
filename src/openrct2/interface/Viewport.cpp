@@ -29,6 +29,7 @@
 #include "../object/WallSceneryEntry.h"
 #include "../paint/Paint.h"
 #include "../profiling/Profiling.h"
+#include "../profiling/FrameProfiler.hpp"
 #include "../ride/Ride.h"
 #include "../ride/RideData.h"
 #include "../ride/TrackDesign.h"
@@ -838,8 +839,16 @@ namespace OpenRCT2
     {
         PROFILED_FUNCTION();
 
-        PaintSessionGenerate(session);
-        PaintSessionArrange(session);
+        {
+            auto timer = OpenRCT2::Profiling::FramePhaseTimer(
+                OpenRCT2::Profiling::FramePhase::PaintSessionGenerate);
+            PaintSessionGenerate(session);
+        }
+        {
+            auto timer = OpenRCT2::Profiling::FramePhaseTimer(
+                OpenRCT2::Profiling::FramePhase::PaintSessionArrange);
+            PaintSessionArrange(session);
+        }
     }
 
     static void ViewportPaintColumn(PaintSession& session)
@@ -859,7 +868,11 @@ namespace OpenRCT2
             GfxClear(session.rt, colour);
         }
 
-        PaintDrawStructs(session);
+        {
+            auto timer = OpenRCT2::Profiling::FramePhaseTimer(
+                OpenRCT2::Profiling::FramePhase::PaintDrawStructs);
+            PaintDrawStructs(session);
+        }
 
         if (Config::Get().general.renderWeatherGloom && !gTrackDesignSaveMode
             && !(session.ViewFlags & VIEWPORT_FLAG_HIDE_ENTITIES) && !(session.ViewFlags & VIEWPORT_FLAG_HIGHLIGHT_PATH_ISSUES))

@@ -808,7 +808,8 @@ private:
 
         // Create window in window first rather than fullscreen so we have the display the window is on first
         uint32_t flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
-        if (Config::Get().general.drawingEngine == DrawingEngine::OpenGL)
+        if (Config::Get().general.drawingEngine == DrawingEngine::OpenGL
+            || Config::Get().general.drawingEngine == DrawingEngine::SoftwareWithOpenGLPresent)
         {
             flags |= SDL_WINDOW_OPENGL;
         }

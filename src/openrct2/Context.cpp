@@ -62,6 +62,7 @@
 #include "platform/Crash.h"
 #include "platform/Platform.h"
 #include "profiling/Profiling.h"
+#include "profiling/FrameProfiler.hpp"
 #include "rct2/RCT2.h"
 #include "ride/TrackDesignRepository.h"
 #include "scenario/Scenario.h"
@@ -1299,6 +1300,9 @@ namespace OpenRCT2
                 RunFrame();
             } while (!_finished);
             LOG_VERBOSE("finish openrct2 loop");
+
+            // Print final profiling summary on game exit
+            OpenRCT2::Profiling::PrintSessionSummary();
         }
 #endif // __EMSCRIPTEN__
 
@@ -1425,9 +1429,13 @@ namespace OpenRCT2
         {
             PROFILED_FUNCTION();
 
+            OpenRCT2::Profiling::BeginFrame();
+
             _drawingEngine->BeginDraw();
             _painter->Paint(*_drawingEngine);
             _drawingEngine->EndDraw();
+
+            OpenRCT2::Profiling::EndFrame();
         }
 
         void Tick()

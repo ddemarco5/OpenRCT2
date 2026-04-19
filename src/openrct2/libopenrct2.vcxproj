@@ -440,6 +440,7 @@
     <ClInclude Include="platform\Platform.h" />
     <ClInclude Include="profiling\Profiling.h" />
     <ClInclude Include="profiling\ProfilingMacros.hpp" />
+    <ClInclude Include="profiling\FrameProfiler.hpp" />
     <ClInclude Include="rct12\CSChar.h" />
     <ClInclude Include="rct12\CSStringConverter.h" />
     <ClInclude Include="rct12\EntryList.h" />
@@ -1119,6 +1120,7 @@
     <ClCompile Include="platform\Platform.Posix.cpp" />
     <ClCompile Include="platform\Platform.Win32.cpp" />
     <ClCompile Include="profiling\Profiling.cpp" />
+    <ClCompile Include="profiling\FrameProfiler.cpp" />
     <ClCompile Include="rct12\CSStringConverter.cpp" />
     <ClCompile Include="rct12\RCT12.cpp" />
     <ClCompile Include="rct12\ScenarioPatcher.cpp" />
