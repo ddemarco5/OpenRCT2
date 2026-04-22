@@ -1,0 +1,104 @@
+function_name,calls,min_microseconds,max_microseconds,average_microseconds,total_microseconds
+void OpenRCT2::Context::RunFrame(),176,92180.752,414260.204,295806.251682,52061900.296
+void OpenRCT2::Context::RunVariableFrame(float),176,92157.774,414240.927,295786.482187,52058420.865
+void OpenRCT2::Context::Draw(),176,104199.507,288228.769,175168.425233,30829642.841
+void OpenRCT2::Paint::Painter::Paint(OpenRCT2::Drawing::IDrawingEngine&),176,103058.346,287046.191,173993.601597,30622873.881
+"void OpenRCT2::ViewportPaint(const Viewport*, Drawing::RenderTarget&)",993,10408.246,228132.299,30466.5820191,30253315.945
+void OpenRCT2::ViewportFillColumn(PaintSession&),6732,2392.254,13037.336,4261.92002793,28691245.628
+void OpenRCT2::Context::Tick(),702,9269.459,57073.679,29390.6993604,20632270.951
+void OpenRCT2::gameStateUpdateLogic(),702,23301.706,56891.808,29221.193188,20513277.618
+"void TileElementPaintSetup(PaintSession&, const CoordsXY&, bool)",976624,1.816,3610.94,17.8695517651,17451833.123
+void OpenRCT2::PeepUpdateAll(),702,15801.922,45988.168,21101.5957778,14813320.236
+"void PaintTileElementBase(PaintSession&, const CoordsXY&)",479227,2.165,3604.025,29.3238786087,14052794.374
+"void PaintSurface(PaintSession&, uint8_t, uint16_t, const OpenRCT2::SurfaceElement&)",172884,40.02,1151.148,43.9058906029,7590625.991
+"void EntityPaintSetup(PaintSession&, const CoordsXY&)",1953248,1.607,3419.081,2.28025651223,4453906.472
+void VehicleUpdateAll(),702,4451.916,17994.914,5118.0631396,3592880.324
+"void OpenRCT2::ViewportInvalidate(const Viewport*, const ScreenRect&)",1370064,1.606,279.302,2.27747462381,3120285.993
+"Direction OpenRCT2::PathFinding::ChooseDirection(const TileCoordsXYZ&, const TileCoordsXYZ&, OpenRCT2::Peep&, bool, RideId)",1392,9.01,11422.152,2130.20499928,2965245.359
+"void PaintPath(PaintSession&, uint16_t, const OpenRCT2::PathElement&)",96619,26.68,3522.309,29.354556433,2836207.888
+"void ViewportSurfaceSmoothenEdge(PaintSession&, edge_t, const TileDescriptor&, const TileDescriptor&)",691536,1.816,249.199,2.5383286539,1755345.644
+void OpenRCT2::ViewportPaintColumn(PaintSession&),6732,34.782,1094.506,212.235165033,1428767.131
+std::optional<CoordsXY> OpenRCT2::Peep::UpdateAction(int16_t&),445870,1.955,390.91,3.08982670958,1377661.035
+void PaintDrawStructs(PaintSession&),6732,26.051,1081.236,202.172703357,1361026.639
+bool OpenRCT2::Peep::CheckForPath(),553732,1.676,311.568,2.35854526016,1306001.984
+"bool OpenRCT2::PathFinding::PathIsThinJunction(OpenRCT2::PathElement*, const TileCoordsXYZ&)",402054,2.444,281.256,3.11858020316,1253837.645
+"void PathPaintBoxSupport(PaintSession&, const OpenRCT2::PathElement&, int32_t, const FootpathPaintInfo&, bool, ImageId, ImageId)",65608,12.153,3494.582,13.5571811669,889459.542
+"void ViewportSurfaceDrawTileSideBottom(PaintSession&, edge_t, uint16_t, const OpenRCT2::TerrainEdgeObject*, const TileDescriptor&, const TileDescriptor&, bool)",345768,1.607,242.564,2.16286587828,747849.809
+"void ViewportSurfaceDrawTileSideTop(PaintSession&, edge_t, uint16_t, const OpenRCT2::TerrainEdgeObject*, const TileDescriptor&, const TileDescriptor&, bool)",345768,1.606,134.168,2.12368857731,734303.552
+"void PaintWall(PaintSession&, uint8_t, int32_t, const OpenRCT2::WallElement&)",42948,15.296,173.908,16.9186764459,726623.316
+"void PathPaintFencesAdditionsTunnels(PaintSession&, const OpenRCT2::PathElement&, uint16_t, uint16_t, const FootpathPaintInfo&, ImageId, ImageId, bool)",96619,5.797,201.497,7.07124897794,683217.005
+static void Ride::updateAll(),702,846.075,1192.915,879.263138177,617242.723
+"void PaintWallWall(PaintSession&, const OpenRCT2::WallSceneryEntry&, const OpenRCT2::WallElement&, ImageId, Direction, int32_t, bool)",42948,10.546,168.67,11.7761286672,505761.174
+"void PathPaintPoleSupport(PaintSession&, const OpenRCT2::PathElement&, int16_t, const FootpathPaintInfo&, bool, ImageId, ImageId)",31011,11.943,221.331,14.7257293863,456659.594
+"void PaintSmallScenery(PaintSession&, uint8_t, int32_t, const OpenRCT2::SmallSceneryElement&)",34167,11.664,116.847,13.2945761407,454235.783
+void OpenRCT2::PeepUpdateCrowdNoise(),702,553.713,1010.415,598.909692308,420434.604
+"void PathPaintFencesAndQueueBanners(PaintSession&, const OpenRCT2::PathElement&, uint16_t, uint32_t, bool, const FootpathPaintInfo&, ImageId)",96619,1.886,194.861,2.42714448504,234508.273
+"void PaintLampLightEffects(PaintSession&, const OpenRCT2::PathElement&, uint16_t)",96619,1.746,88.631,2.26212889804,218564.632
+"void PaintHeightMarkers(PaintSession&, const OpenRCT2::PathElement&)",96619,1.676,189.623,2.20995966632,213524.093
+void OpenRCT2::MapAnimations::InvalidateAndUpdateAll(),702,184.454,445.177,223.487454416,156888.193
+"void PaintWallWall(PaintSession&, const OpenRCT2::WallSceneryEntry&, ImageId, uint32_t, CoordsXYZ, BoundBoxXYZ, bool)",42948,2.304,97.71,2.89201958182,124206.457
+void OpenRCT2::RideRating::UpdateAll(),702,41.068,423.666,172.129301994,120834.77
+void PaintSessionArrange(PaintSessionCore&),6736,3.841,761.985,16.9204691211,113976.28
+"void PaintSmallSceneryBody(PaintSession&, uint8_t, int32_t, const OpenRCT2::SmallSceneryElement&, const OpenRCT2::SmallSceneryEntry*, ImageId)",34167,2.654,105.603,3.25699994146,111281.917
+void OpenRCT2::Audio::UpdateVehicleSounds(),702,126.835,282.444,8648.49942884,98042.379
+"void PaintWallScrollingText(PaintSession&, const OpenRCT2::WallSceneryEntry&, const OpenRCT2::WallElement&, Direction, int32_t, const CoordsXYZ&, bool)",42948,1.606,69.563,2.09884397411,90141.151
+"void PaintSmallScenerySupports(PaintSession&, const OpenRCT2::SmallSceneryEntry&, const OpenRCT2::SmallSceneryElement&, Direction, int32_t, ImageId)",34167,1.606,78.014,2.23174762197,76252.121
+void OpenRCT2::EntityRegistry::UpdateAllMiscEntities(),702,36.668,218.537,100.359749288,70452.544
+"void PaintEntrance(PaintSession&, uint8_t, int32_t, const OpenRCT2::EntranceElement&)",1402,16.552,162.733,37.7980349501,52992.845
+"PaintSession* OpenRCT2::Paint::Painter::CreateSession(OpenRCT2::Drawing::RenderTarget&, uint32_t, uint8_t)",6736,3.562,63.208,6.36938598575,42904.184
+"void PaintParkEntrance(PaintSession&, uint8_t, int32_t, const OpenRCT2::EntranceElement&)",1402,7.892,147.787,28.7685477889,40333.504
+void OpenRCT2::MapUpdateTiles(),702,34.223,158.264,46.039497151,32319.727
+void OpenRCT2::MapUpdatePathWideFlags(),702,12.362,153.305,45.687517094,32072.637
+"void PaintGuest(PaintSession&, const OpenRCT2::Guest&, int32_t)",6827,2.934,69.913,3.9722520873,27118.565
+"void PaintParkEntranceScrollingText(PaintSession&, const OpenRCT2::EntranceObject&, Direction, int32_t)",467,25.632,125.228,54.3064218415,25361.099
+void RideMeasurementsUpdate(),702,20.324,108.326,23.5299401709,16518.018
+"void PaintLargeScenery(PaintSession&, uint8_t, uint16_t, const OpenRCT2::LargeSceneryElement&)",1160,8.032,68.376,13.5609646552,15730.719
+void OpenRCT2::Paint::Painter::ReleaseSession(PaintSession*),6736,1.746,92.333,2.26859219121,15281.237
+void OpenRCT2::Scripting::ScriptEngine::Tick(),702,9.219,91.424,10.2501125356,7195.579
+"void OpenRCT2::Park::Update(ParkData&, OpenRCT2::GameState_t&)",702,4.051,771.553,6.47178347578,4543.192
+void OpenRCT2::Ui::ProvisionalElementsRestore(),702,3.772,68.166,6.00278062678,4213.952
+"void PaintLargeScenery3DText(PaintSession&, const OpenRCT2::LargeSceneryEntry&, const OpenRCT2::LargeSceneryTile&, const OpenRCT2::LargeSceneryElement&, uint8_t, uint16_t, bool)",247,2.165,56.922,15.9888582996,3949.248
+"void PaintLargeScenerySupports(PaintSession&, uint8_t, uint16_t, const OpenRCT2::LargeSceneryElement&, ImageId, const OpenRCT2::LargeSceneryTile&)",1160,1.816,34.642,2.76120344828,3202.996
+void PaintParkEntranceLightEffects(PaintSession&),1402,1.885,47.843,2.27192867332,3185.244
+"void PaintHeightMarkers(PaintSession&, const OpenRCT2::EntranceElement&, int32_t)",1402,1.746,3.841,2.1072446505,2954.357
+void OpenRCT2::Ui::ProvisionalElementsRemove(),702,3.003,6.356,3.73618233618,2622.8
+void ScenarioUpdate(OpenRCT2::GameState_t&),702,2.305,62.789,3.01568376068,2117.01
+void OpenRCT2::Weather::updateSound(),702,2.375,66.21,2.9647977208,2081.288
+void ResearchUpdate(),702,2.095,7.682,2.62320655271,1841.491
+void OpenRCT2::News::UpdateCurrentItem(),702,2.026,3.981,2.57978774929,1811.011
+void OpenRCT2::Weather::update(),702,1.956,5.168,2.53343162393,1778.469
+"void PaintLargeScenery3DTextLine(PaintSession&, const OpenRCT2::LargeSceneryEntry&, const OpenRCT2::LargeSceneryText&, std::string_view, ImageId, Direction, int32_t)",136,6.635,39.042,8.25732352941,1122.996
+"void PaintStaff(PaintSession&, const OpenRCT2::Staff&, int32_t)",262,3.282,6.216,4.17405725191,1093.603
+"void OpenRCT2::MoneyEffect::Paint(PaintSession&, int32_t) const",368,1.816,3.212,2.16952717391,798.386
+void VirtualFloorInvalidate(bool),177,2.235,20.324,2.69154237288,476.403
+"OpenRCT2::InteractionInfo OpenRCT2::SetInteractionInfoFromPaintSession(PaintSession*, uint32_t, uint16_t)",4,37.436,51.963,46.70725,186.829
+"bool OpenRCT2::IsSpriteInteractedWith(Drawing::RenderTarget&, ImageId, const ScreenCoordsXY&)",18,6.425,9.429,7.20544444444,129.698
+"bool OpenRCT2::IsSpriteInteractedWithPaletteSet(Drawing::RenderTarget&, ImageId, const ScreenCoordsXY&, const Drawing::PaletteMap&, uint8_t)",18,2.235,3.143,2.61894444444,47.141
+void OpenRCT2::Context::RunGameLoop(),0,0,0,0,0
+void OpenRCT2::Context::RunFixedFrame(float),0,0,0,0,0
+"void OpenRCT2::gameStateInitAll(GameState_t&, const TileCoordsXY&)",0,0,0,0,0
+void OpenRCT2::gameStateTick(),0,0,0,0,0
+void OpenRCT2::gameStateCreateStateSnapshot(),0,0,0,0,0
+"void OpenRCT2::Duck::Paint(PaintSession&, int32_t) const",0,0,0,0,0
+"void OpenRCT2::JumpingFountain::Paint(PaintSession&, int32_t) const",0,0,0,0,0
+"void OpenRCT2::Litter::Paint(PaintSession&, int32_t) const",0,0,0,0,0
+"void OpenRCT2::VehicleCrashParticle::Paint(PaintSession&, int32_t) const",0,0,0,0,0
+"void OpenRCT2::CrashSplashParticle::Paint(PaintSession&, int32_t) const",0,0,0,0,0
+"void OpenRCT2::SteamParticle::Paint(PaintSession&, int32_t) const",0,0,0,0,0
+"void OpenRCT2::ExplosionCloud::Paint(PaintSession&, int32_t) const",0,0,0,0,0
+"void OpenRCT2::ExplosionFlare::Paint(PaintSession&, int32_t) const",0,0,0,0,0
+void AwardUpdateAll(),0,0,0,0,0
+void FinancePayWages(),0,0,0,0,0
+void FinancePayRideUpkeep(),0,0,0,0,0
+void FinanceUpdateDailyProfit(),0,0,0,0,0
+void MarketingUpdate(),0,0,0,0,0
+void VirtualFloorPaint(PaintSession&),0,0,0,0,0
+"void PaintWallDoor(PaintSession&, const OpenRCT2::WallSceneryEntry&, ImageId, CoordsXYZ, BoundBoxXYZ, BoundBoxXYZ, BoundBoxXYZ)",0,0,0,0,0
+"void PaintWallDoor(PaintSession&, const OpenRCT2::WallSceneryEntry&, const OpenRCT2::WallElement&, ImageId, Direction, int32_t)",0,0,0,0,0
+"void PaintBalloon(PaintSession&, const OpenRCT2::Balloon&, int32_t)",0,0,0,0,0
+"void PaintBannerScrollingText(PaintSession&, const OpenRCT2::BannerSceneryEntry&, Banner&, const OpenRCT2::BannerElement&, Direction, int32_t, const CoordsXYZ&)",0,0,0,0,0
+"void PaintBanner(PaintSession&, uint8_t, int32_t, const OpenRCT2::BannerElement&)",0,0,0,0,0
+"void PaintRideEntranceExitScrollingText(PaintSession&, const OpenRCT2::EntranceElement&, const OpenRCT2::StationObject&, Direction, int32_t)",0,0,0,0,0
+"void PaintRideEntranceExitLightEffects(PaintSession&, int32_t, const OpenRCT2::EntranceElement&)",0,0,0,0,0
+"void PaintRideEntranceExit(PaintSession&, uint8_t, int32_t, const OpenRCT2::EntranceElement&)",0,0,0,0,0
+"void PaintLargeSceneryScrollingText(PaintSession&, const OpenRCT2::LargeSceneryEntry&, const OpenRCT2::LargeSceneryElement&, uint8_t, uint16_t, const CoordsXYZ&, bool)",0,0,0,0,0

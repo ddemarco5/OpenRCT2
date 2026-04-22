@@ -53,8 +53,11 @@ void EntityPaintSetup(PaintSession& session, const CoordsXY& pos)
     {
         return;
     }
-
     if (session.rt.zoom_level > ZoomLevel{ 2 })
+    {
+        return;
+    }
+    if (getGameState().entities.GetEntityTileList(pos).empty())
     {
         return;
     }

@@ -119,11 +119,22 @@ public:
         , _windowManager(CreateWindowManager())
         , _shortcutManager(env)
     {
+        // Prefer Wayland if available, otherwise use X11
+        if (std::getenv("WAYLAND_DISPLAY") != nullptr)
+        {
+            SDL_SetHint(SDL_HINT_VIDEODRIVER, "wayland");
+        }
+        else if (std::getenv("DISPLAY") != nullptr)
+        {
+            SDL_SetHint(SDL_HINT_VIDEODRIVER, "x11");
+        }
+
         LogSDLVersion();
         if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK) < 0)
         {
             SDLException::Throw("SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK)");
         }
+        LOG_INFO("SDL video driver: %s", SDL_GetCurrentVideoDriver());
         _cursorRepository.LoadCursors();
         _shortcutManager.loadUserBindings();
     }
@@ -809,7 +820,7 @@ private:
         // Create window in window first rather than fullscreen so we have the display the window is on first
         uint32_t flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
         if (Config::Get().general.drawingEngine == DrawingEngine::OpenGL
-            || Config::Get().general.drawingEngine == DrawingEngine::SoftwareWithOpenGLPresent)
+            || Config::Get().general.drawingEngine == DrawingEngine::Hybrid)
         {
             flags |= SDL_WINDOW_OPENGL;
         }

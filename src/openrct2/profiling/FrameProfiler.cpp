@@ -9,6 +9,7 @@
 
 #include "FrameProfiler.hpp"
 
+#include <cinttypes>
 #include <cstdio>
 #include <vector>
 
@@ -136,7 +137,7 @@ namespace OpenRCT2::Profiling
             std::printf("  %-22s: %6.2f ms (%5.1f%%)\n", phaseNames[i], avgMs, pct);
         }
         std::printf("  ------------------------------\n");
-        
+
         // Reset for next batch
         ResetAccumulatedStats();
     }
@@ -190,6 +191,7 @@ namespace OpenRCT2::Profiling
             std::printf("[Profiler]  %-22s: %6.2f ms (%5.1f%%)\n", phaseNames[i], avgMs, pct);
         }
         std::printf("[Profiler] ==================================================\n");
+
         std::printf("\n");
     }
 

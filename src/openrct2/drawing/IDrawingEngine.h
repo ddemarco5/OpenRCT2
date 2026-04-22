@@ -20,8 +20,8 @@ enum class DrawingEngine : int32_t
 {
     None = -1,
     SoftwareWithHardwareDisplay,
+    Hybrid,
     OpenGL,
-    SoftwareWithOpenGLPresent,
     Count,
 };
 

@@ -61,7 +61,10 @@ void TileElementPaintSetup(PaintSession& session, const CoordsXY& mapCoords, boo
         session.Flags = isTrackPiecePreview ? PaintSessionFlags::IsTrackPiecePreview : 0;
         session.WaterHeight = 0xFFFF;
 
-        PaintTileElementBase(session, mapCoords);
+        if (MapGetFirstElementAt(mapCoords) != nullptr)
+        {
+            PaintTileElementBase(session, mapCoords);
+        }
     }
     else if (!(session.ViewFlags & VIEWPORT_FLAG_TRANSPARENT_BACKGROUND))
     {

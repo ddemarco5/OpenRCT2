@@ -35,7 +35,7 @@ namespace OpenRCT2::Ui
 #ifndef DISABLE_OPENGL
                 case DrawingEngine::OpenGL:
                     return CreateOpenGLDrawingEngine(uiContext);
-                case DrawingEngine::SoftwareWithOpenGLPresent:
+                case DrawingEngine::Hybrid:
                     return CreateHybridDisplayDrawingEngine(uiContext);
 #endif
                 default:

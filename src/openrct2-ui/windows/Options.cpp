@@ -486,6 +486,7 @@ namespace OpenRCT2::Ui::Windows
     static constexpr StringId kDrawingEngineStringIds[] = {
         STR_DRAWING_ENGINE_SOFTWARE,
 #ifndef DISABLE_OPENGL
+        STR_DRAWING_ENGINE_HYBRID_SOFTWARE,
         STR_DRAWING_ENGINE_OPENGL,
 #endif
     };

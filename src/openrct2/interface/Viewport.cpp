@@ -221,7 +221,8 @@ namespace OpenRCT2
         return mainWindow->viewport;
     }
 
-    void ViewportsInvalidate(const int32_t x, const int32_t y, const int32_t z0, const int32_t z1, const ZoomLevel maxZoom)
+    void ViewportsInvalidate(
+        const int32_t x, const int32_t y, const int32_t z0, const int32_t z1, const ZoomLevel maxZoom)
     {
         for (const auto& viewport : _viewports)
         {
@@ -844,6 +845,7 @@ namespace OpenRCT2
                 OpenRCT2::Profiling::FramePhase::PaintSessionGenerate);
             PaintSessionGenerate(session);
         }
+
         {
             auto timer = OpenRCT2::Profiling::FramePhaseTimer(
                 OpenRCT2::Profiling::FramePhase::PaintSessionArrange);

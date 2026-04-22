@@ -48,8 +48,8 @@ static IDrawingEngine* GetDrawingEngine()
 bool DrawingEngineRequiresNewWindow(DrawingEngine srcEngine, DrawingEngine dstEngine)
 {
     bool openGL = srcEngine == DrawingEngine::OpenGL || dstEngine == DrawingEngine::OpenGL
-        || srcEngine == DrawingEngine::SoftwareWithOpenGLPresent
-        || dstEngine == DrawingEngine::SoftwareWithOpenGLPresent;
+        || srcEngine == DrawingEngine::Hybrid
+        || dstEngine == DrawingEngine::Hybrid;
     return Platform::RequireNewWindow(openGL);
 }
 
